@@ -1,0 +1,365 @@
+{
+    "info": {
+        "name": "WispHub API",
+        "description": "Colecci\u00f3n de endpoints para interactuar con la API local de WispHub (Refactorizada).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Clientes (Clients)",
+            "description": "B\u00fasqueda y listado de clientes en el sistema",
+            "item": [
+                {
+                    "name": "Listar todos los Clientes",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Cliente por Documento",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/by-document/123456789",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "by-document",
+                                "123456789"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Cliente por Tel\u00e9fono",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/by-phone/55512345",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "by-phone",
+                                "55512345"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Cliente por Service ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/by-service-id/100",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "by-service-id",
+                                "100"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "B\u00fasqueda Flexible (Por Nombre/Direcci\u00f3n)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/search?q=Juan Perez",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "search"
+                            ],
+                            "query": [
+                                {
+                                    "key": "q",
+                                    "value": "Juan Perez"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Actualizar Perfil (C\u00e9dula/Tel\u00e9fono)",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"document\": \"100100100\",\n    \"phone\": \"3000000000\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/100",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "100"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Verificar Identidad (Datos de Factura)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"address\": \"Bellavista\",\n    \"internet_plan_name\": \"7MB PLUS\",\n    \"internet_plan_price\": 40000.0\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/100/verify",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "100",
+                                "verify"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Planes de Internet",
+            "description": "Consulta de planes de red disponibles y detalles",
+            "item": [
+                {
+                    "name": "Listar Planes",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/internet-plans",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "internet-plans"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Detalle de Plan",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/internet-plans/10",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "internet-plans",
+                                "10"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Soporte (Tickets)",
+            "description": "Gesti\u00f3n de soporte y tickets t\u00e9cnicos",
+            "item": [
+                {
+                    "name": "Crear Ticket",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"service_id\": 100,\n    \"subject\": \"Sin acceso a internet\",\n    \"technician_id\": 5,\n    \"description\": \"El cliente reporta luz roja en el router.\",\n    \"zone_id\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/tickets",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "tickets"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Verificar Zona Bloqueada",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/tickets/zone-blocked/1",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "tickets",
+                                "zone-blocked",
+                                "1"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Obtener Ticket",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/tickets/500",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "tickets",
+                                "500"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Red y Diagn\u00f3sticos",
+            "description": "Herramientas de diagn\u00f3stico como Pings",
+            "item": [
+                {
+                    "name": "Iniciar Ping As\u00edncrono",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pings\": 4\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/100/ping/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "100",
+                                "ping",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Consultar Resultado PING por Task ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/ping/123-abc/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "ping",
+                                "123-abc",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
