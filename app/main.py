@@ -17,6 +17,8 @@ origins = [
     "http://localhost",
     "http://localhost:3000", # Frontend dev common port
     "http://localhost:8080", # Frontend dev common port
+    "http://localhost:8081", # Chatbot interface dev server
+    "http://localhost:8082", # Chatbot interface dev server (fallback)
     # "https://midominio.com" # Agregar dominios de producción aquí
 ]
 
