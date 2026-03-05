@@ -34,6 +34,31 @@ GET /api/v1/clients/by-document/{document}
   1.0.0
 </ResponseField>
 
+## Authentication
+
+Todos los endpoints de esta API (excepto `/health` y `/api/v1/auth/token`) requieren autenticación mediante **JWT Bearer token**.
+
+### Quick Start
+
+1. **Obtén un token** llamando a `POST /api/v1/auth/token` con tus credenciales:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=your_password"
+```
+
+2. **Usa el token** en el header `Authorization` de cada solicitud:
+
+```bash
+curl http://localhost:8000/api/v1/clients/ \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+<Info>
+  El Swagger UI en `/docs` tiene soporte integrado para autenticación Bearer. Haz clic en el botón **Authorize** e ingresa tu token.
+</Info>
+
 ## Interactive Documentation
 
 The API provides automatic interactive documentation powered by FastAPI:
@@ -72,6 +97,10 @@ GET /health
 
 The API provides the following resource endpoints:
 
+### Authentication
+
+- **POST** `/api/v1/auth/token` — Obtener JWT Bearer token (no requiere auth previa)
+
 ### Clients
 
 Manage client information, search, verification, and profile updates.
@@ -89,6 +118,7 @@ Manage client information, search, verification, and profile updates.
 
 Create and manage technical support tickets.
 
+- **GET** `/api/v1/tickets/subjects` - List all valid ticket subjects grouped by priority
 - **POST** `/api/v1/tickets` - Create a new support ticket
 - **GET** `/api/v1/tickets/{ticket_id}` - Get ticket details by ID
 - **GET** `/api/v1/tickets/zone-blocked/{zone_id}` - Check if zone has reached ticket limit

@@ -1,0 +1,189 @@
+---
+title: Login — Obtain Access Token
+description: Authenticate with API credentials to receive a JWT Bearer token for subsequent requests
+---
+
+# Login — Obtain Access Token
+
+Autentica con las credenciales de la API y recibe un token JWT que debes incluir en todas las solicitudes a endpoints protegidos.
+
+## Endpoint
+
+```
+POST /api/v1/auth/token
+```
+
+<Info>
+  Este endpoint usa **form-data** (no JSON). El campo `Content-Type` debe ser `application/x-www-form-urlencoded`.
+</Info>
+
+## Request
+
+### Form Fields
+
+<ParamField body="username" type="string" required>
+  Nombre de usuario de la API. Configurado mediante la variable de entorno `API_USERNAME`.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Contraseña en texto plano. Se valida contra el hash bcrypt almacenado en `API_PASSWORD_HASH`.
+</ParamField>
+
+## Response
+
+### 200 OK — Token Issued
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+<ResponseField name="access_token" type="string">
+  Token JWT firmado con HS256. Válido por `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` minutos (por defecto **60 minutos**).
+</ResponseField>
+
+<ResponseField name="token_type" type="string">
+  Siempre `"bearer"`. Indica el esquema para el header `Authorization`.
+</ResponseField>
+
+### 401 Unauthorized — Invalid Credentials
+
+```json
+{
+  "detail": "Incorrect username or password."
+}
+```
+
+<Warning>
+  Tras un 401, verifica que las variables `API_USERNAME` y `API_PASSWORD_HASH` en tu `.env` sean correctas.
+</Warning>
+
+## Usage — Using the Token
+
+Incluye el token en el encabezado `Authorization` de todas las solicitudes a endpoints protegidos:
+
+```
+Authorization: Bearer <access_token>
+```
+
+## Code Examples
+
+<CodeGroup>
+
+```bash curl
+# 1. Obtener el token
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=your_password" \
+  | jq -r '.access_token')
+
+# 2. Usar el token en una solicitud protegida
+curl http://localhost:8000/api/v1/clients/ \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```python httpx (async)
+import httpx
+
+async def get_token(username: str, password: str) -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8000/api/v1/auth/token",
+            data={"username": username, "password": password},
+        )
+        response.raise_for_status()
+        return response.json()["access_token"]
+
+async def call_protected_endpoint(token: str):
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://localhost:8000/api/v1/clients/",
+            headers=headers,
+        )
+        return response.json()
+```
+
+```javascript fetch
+async function getToken(username, password) {
+  const body = new URLSearchParams({ username, password });
+
+  const res = await fetch("http://localhost:8000/api/v1/auth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  if (!res.ok) throw new Error("Authentication failed");
+  const { access_token } = await res.json();
+  return access_token;
+}
+
+async function callProtectedEndpoint(token) {
+  const res = await fetch("http://localhost:8000/api/v1/clients/", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+```
+
+</CodeGroup>
+
+## Token Lifecycle
+
+```
+         POST /api/v1/auth/token
+         ┌─────────────────────┐
+         │  username + password │
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  Verifica credenciales│
+         │  (bcrypt hash check) │
+         └──────────┬──────────┘
+                    │ JWT firmado (HS256)
+                    ▼
+         ┌─────────────────────┐
+         │  access_token       │  ← válido por 60 min (configurable)
+         └──────────┬──────────┘
+                    │
+                    ▼ (cada request protegido)
+         Authorization: Bearer <token>
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  get_current_user   │  ← dependency en FastAPI
+         │  (valida el JWT)    │
+         └─────────────────────┘
+```
+
+## Token Expiry
+
+Cuando el token expira, todos los endpoints protegidos devuelven:
+
+```json
+{
+  "detail": "Could not validate credentials."
+}
+```
+
+Con el header:
+```
+WWW-Authenticate: Bearer
+```
+
+Simplemente solicita un nuevo token llamando a este endpoint nuevamente.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Authentication Guide" icon="key" href="/authentication">
+    Guía completa de autenticación JWT y API key
+  </Card>
+  <Card title="Environment Variables" icon="gear" href="/deployment/environment">
+    Configurar JWT_SECRET_KEY y credenciales de API
+  </Card>
+</CardGroup>

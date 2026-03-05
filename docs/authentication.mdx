@@ -1,13 +1,199 @@
 ---
 title: Authentication
-description: Understanding WispHub API authentication using API keys for secure access to WispHub Net
+description: WispHub API authentication — JWT Bearer tokens to protect the API and API keys to access WispHub Net
 ---
 
 # Authentication
 
-The WispHub API uses API key authentication to secure access to the WispHub Net infrastructure. This page explains how authentication works and how to configure it properly.
+La WispHub API implementa **dos capas de autenticación** independientes:
 
-## Authentication Flow
+1. **JWT Bearer Token** — protege todos los endpoints de esta API. Los clientes (bots, frontends, etc.) deben obtener un token antes de consumir cualquier recurso.
+2. **WispHub Net API Key** — usada internamente por la API para autenticarse con el backend de WispHub Net. Los clientes de esta API **no necesitan** gestionar esta clave.
+
+---
+
+## Part 1: JWT Authentication (API Clients)
+
+### Authentication Flow
+
+```
+┌──────────────┐
+│ Client App   │
+│ (Bot/Web)    │
+└──────┬───────┘
+       │
+       │ POST /api/v1/auth/token
+       │ {username, password}
+       ▼
+┌──────────────────┐
+│  WispHub API     │  Valida credenciales → emite JWT
+│  (This API)      │
+└──────┬───────────┘
+       │
+       │ Authorization: Bearer <jwt_token>
+       │ (todas las solicitudes posteriores)
+       ▼
+┌──────────────────┐
+│  Endpoints       │  get_current_user dependency
+│  Protegidos      │  valida y decodifica el JWT
+└──────┬───────────┘
+       │ (si el JWT es válido)
+       │ HTTP Request
+       │ Header: Authorization: Api-Key {KEY}
+       ▼
+┌──────────────────┐
+│  WispHub Net     │  API Key validation
+│  (External)      │
+└──────────────────┘
+```
+
+### Obtaining a Token
+
+Llama al endpoint de login con tus credenciales como **form-data**:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=your_password"
+```
+
+Respuesta:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+<Info>
+  El endpoint usa el estándar OAuth2 `application/x-www-form-urlencoded`, no JSON. Los campos son `username` y `password`.
+</Info>
+
+### Using the Token
+
+Incluye el token en el header `Authorization` de **todas** las solicitudes a endpoints protegidos:
+
+```
+Authorization: Bearer <access_token>
+```
+
+**Ejemplo:**
+
+```bash
+curl http://localhost:8000/api/v1/clients/ \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Token Properties
+
+| Property | Value |
+|---|---|
+| Algorithm | HS256 |
+| Default expiry | 60 minutes (configurable) |
+| Claim | `sub` = username |
+| Header scheme | `Bearer` |
+
+### Token Expiry
+
+Cuando el token expira, los endpoints protegidos devuelven:
+
+```json
+{
+  "detail": "Could not validate credentials."
+}
+```
+
+Con el header `WWW-Authenticate: Bearer`. Simplemente solicita un nuevo token.
+
+### JWT Configuration
+
+Las siguientes variables de entorno controlan el comportamiento del JWT:
+
+```env .env
+# Clave secreta para firmar los tokens — usa un valor aleatorio largo
+JWT_SECRET_KEY=your_very_long_random_secret_key_here
+
+# Algoritmo de firma (por defecto HS256)
+JWT_ALGORITHM=HS256
+
+# Minutos de validez del token (por defecto 60)
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# Credenciales de acceso a la API
+API_USERNAME=admin
+API_PASSWORD_HASH=$2b$12$...  # hash bcrypt de tu contraseña
+```
+
+<Warning>
+  `JWT_SECRET_KEY` debe ser una cadena aleatoria larga y segura. Nunca uses valores predecibles como `"secret"` o `"1234"` en producción. Genera una con: `openssl rand -hex 32`
+</Warning>
+
+<Tip>
+  Para generar el hash bcrypt de tu contraseña, usa Python:
+  ```python
+  from passlib.context import CryptContext
+  pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+  print(pwd_context.hash("tu_contraseña"))
+  ```
+</Tip>
+
+### How JWT is Implemented
+
+La verificación del token en los endpoints se hace mediante una FastAPI dependency:
+
+```python app/api/dependencies.py
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordBearer
+from app.core.security import decode_access_token
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+    return decode_access_token(token)
+```
+
+Todos los endpoints protegidos incluyen `_: str = Depends(get_current_user)` en su firma, lo que hace que FastAPI rechace automáticamente solicitudes sin token válido con HTTP 401.
+
+### Testing JWT Authentication
+
+```python tests/conftest.py
+import pytest
+from httpx import AsyncClient, ASGITransport
+from app.main import app
+
+@pytest.fixture
+async def auth_token(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/auth/token",
+        data={"username": "admin", "password": "test_password"},
+    )
+    return response.json()["access_token"]
+
+@pytest.fixture
+def auth_headers(auth_token: str):
+    return {"Authorization": f"Bearer {auth_token}"}
+```
+
+```python tests/api/test_clients.py
+@pytest.mark.asyncio
+async def test_list_clients_requires_auth(async_client):
+    # Sin token → 401
+    response = await async_client.get("/api/v1/clients/")
+    assert response.status_code == 401
+
+@pytest.mark.asyncio
+async def test_list_clients_with_token(async_client, auth_headers):
+    # Con token válido → 200
+    response = await async_client.get("/api/v1/clients/", headers=auth_headers)
+    assert response.status_code == 200
+```
+
+---
+
+## Part 2: WispHub Net API Key (Outbound)
+
+### Authentication Flow
 
 ```
 ┌──────────────┐
@@ -16,10 +202,11 @@ The WispHub API uses API key authentication to secure access to the WispHub Net 
 └──────┬───────┘
        │
        │ HTTP Request
+       │ Header: Authorization: Bearer {JWT}
        ▼
 ┌──────────────────┐
-│  WispHub API     │  No auth required
-│  (This API)      │  (Internal API)
+│  WispHub API     │  JWT validation
+│  (This API)      │  (get_current_user)
 └──────┬───────────┘
        │
        │ HTTP Request
@@ -27,12 +214,12 @@ The WispHub API uses API key authentication to secure access to the WispHub Net 
        ▼
 ┌──────────────────┐
 │  WispHub Net     │  API Key validation
-│  (External)      │  
+│  (External)      │
 └──────────────────┘
 ```
 
 <Info>
-The WispHub middleware API itself does **not** require authentication from clients. It acts as a trusted proxy that authenticates to WispHub Net on behalf of clients.
+  Los clientes se autentican con esta API usando JWT (ver Part 1). La API actúa como proxy de confianza hacia WispHub Net usando su propia Api-Key, sin exponerla a los clientes.
 </Info>
 
 ## Configuration

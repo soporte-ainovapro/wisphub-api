@@ -20,14 +20,36 @@ Before you begin, ensure you have:
 Create a `.env` file in your project root with your WispHub credentials:
 
 ```bash .env
+# WispHub Net (required)
 WISPHUB_NET_KEY=your_api_key_here
 WISPHUB_NET_HOST=https://api.wisphub.net
+
+# JWT Authentication (required)
+JWT_SECRET_KEY=your_very_long_random_secret_here
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+API_USERNAME=admin
+API_PASSWORD_HASH=$2b$12$... # bcrypt hash of your password
+
+# Business rules (optional)
 MAX_ACTIVE_TICKETS_PER_ZONE=3
 ```
 
 <Warning>
-Never commit your `.env` file to version control. Add it to your `.gitignore` file.
+  Never commit your `.env` file to version control. Add it to your `.gitignore` file.
 </Warning>
+
+<Tip>
+  Generate a secure `JWT_SECRET_KEY` with: `openssl rand -hex 32`
+  
+  Generate the bcrypt hash of your password with Python:
+  ```python
+  from passlib.context import CryptContext
+  ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+  print(ctx.hash("your_password"))
+  ```
+</Tip>
 
 ## Step 2: Build the Docker Image
 
@@ -101,17 +123,34 @@ The Swagger UI provides:
 
 ## Make Your First Request
 
-Try retrieving all clients:
+### Step 1: Obtain a JWT Token
+
+All API endpoints (except `/health`) require a JWT Bearer token. Obtain one first:
 
 ```bash
-curl http://localhost:8000/api/v1/clients/
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=your_password" \
+  | jq -r '.access_token')
+
+echo "Token: $TOKEN"
+```
+
+### Step 2: Call a Protected Endpoint
+
+Use the token in the `Authorization` header:
+
+```bash
+curl http://localhost:8000/api/v1/clients/ \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 <Accordion title="Example Response">
 ```json
 {
-  "success": true,
-  "action": "clients_listed",
+  "ok": true,
+  "type": "success",
+  "action": "CLIENTS_LISTED",
   "message": null,
   "data": [
     {
@@ -172,7 +211,9 @@ Now that you have the API running, explore these topics:
   </Accordion>
 
   <Accordion title="API returns authentication errors">
-    Verify your `WISPHUB_NET_KEY` in the `.env` file is correct and has the necessary permissions to access WispHub Net endpoints.
+    There are two possible causes:
+    - **401 from the API itself**: Your JWT token is missing, expired, or invalid. Obtain a new one with `POST /api/v1/auth/token`.
+    - **Error communicating with WispHub Net**: Verify your `WISPHUB_NET_KEY` in the `.env` file is correct and has the necessary permissions.
   </Accordion>
 </AccordionGroup>
 

@@ -1,0 +1,202 @@
+---
+title: List Ticket Subjects
+description: Get all valid ticket subjects and priorities available for creating support tickets
+---
+
+# List Ticket Subjects
+
+Devuelve todos los asuntos válidos para la creación de tickets en WispHub, agrupados por nivel de prioridad. Ideal para bots o interfaces externas que necesitan mostrar al usuario una lista de opciones antes de abrir un soporte.
+
+## Endpoint
+
+```
+GET /api/v1/tickets/subjects
+```
+
+<Info>
+  Este endpoint requiere autenticación JWT. Incluye el header `Authorization: Bearer <token>`.
+</Info>
+
+## Request
+
+No se requieren parámetros ni body.
+
+### Headers
+
+| Header | Value | Required |
+|---|---|---|
+| `Authorization` | `Bearer <access_token>` | ✅ Yes |
+
+## Response
+
+### 200 OK
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "SUBJECTS_LISTED",
+  "data": {
+    "by_priority": {
+      "low": [
+        "Cambio de Contraseña en Router Wifi",
+        "Cambio de Domicilio",
+        "Recolección De Equipos",
+        "Cancelación",
+        "Desconexión"
+      ],
+      "normal": [
+        "Internet Lento",
+        "Internet Intermitente",
+        "Antena Desalineada",
+        "Cables Mal Colocados",
+        "Cableado Para Modem Extra"
+      ],
+      "high": [
+        "No Tiene Internet",
+        "Antena Dañada",
+        "No Responde la Antena",
+        "No Responde el Router Wifi",
+        "Router Wifi Reseteado (Valores de Fabrica)",
+        "Cambio de Router Wifi",
+        "Cambio de Antena",
+        "Cambio de Antena + Router Wifi",
+        "Cable UTP Dañado",
+        "PoE Dañado",
+        "Conector Dañado",
+        "Antena valores De Fabrica",
+        "Eliminador Dañado",
+        "RJ45 Dañado",
+        "Alambres Rotos",
+        "Reconexión",
+        "Cable Fibra Dañado",
+        "Jumper Dañado"
+      ],
+      "very_high": [
+        "Troncal Dañado",
+        "Caja Nap Dañada",
+        "Cambio A Fibra Óptica"
+      ]
+    },
+    "all": [
+      "Cambio de Contraseña en Router Wifi",
+      "Cambio de Domicilio",
+      "...",
+      "Cambio A Fibra Óptica"
+    ]
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+### Response Fields
+
+<ResponseField name="data.by_priority" type="object">
+  Asuntos agrupados por nivel de prioridad. Útil para generar menús desplegables categorizados.
+
+  <Expandable title="priority levels">
+    <ResponseField name="low" type="string[]">
+      Prioridad baja (nivel 1): asuntos administrativos o no urgentes.
+    </ResponseField>
+    <ResponseField name="normal" type="string[]">
+      Prioridad normal (nivel 2): problemas de degradación del servicio.
+    </ResponseField>
+    <ResponseField name="high" type="string[]">
+      Prioridad alta (nivel 3): pérdida de servicio o daño de equipos.
+    </ResponseField>
+    <ResponseField name="very_high" type="string[]">
+      Prioridad muy alta (nivel 4): fallas de infraestructura o fibra óptica.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.all" type="string[]">
+  Lista plana con todos los asuntos válidos, sin importar prioridad. Útil para validación o búsqueda.
+</ResponseField>
+
+## Priority Reference Table
+
+| Priority Level | Value | Description |
+|---|---|---|
+| `low` | 1 | Gestiones administrativas, sin urgencia técnica |
+| `normal` | 2 | Degradación del servicio (lentitud, intermitencia) |
+| `high` | 3 | Pérdida completa del servicio o daño de equipo |
+| `very_high` | 4 | Falla de infraestructura troncal o fibra |
+
+<Tip>
+  El nivel de prioridad impacta la urgencia con que WispHub asigna un técnico. Usa `very_high` solo para fallas masivas de infraestructura.
+</Tip>
+
+## Code Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X GET http://localhost:8000/api/v1/tickets/subjects \
+  -H "Authorization: Bearer <your_token>"
+```
+
+```python httpx
+import httpx
+
+async def get_ticket_subjects(token: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://localhost:8000/api/v1/tickets/subjects",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        response.raise_for_status()
+        data = response.json()["data"]
+        return data
+
+# Obtener solo los asuntos de prioridad alta
+subjects = await get_ticket_subjects(token)
+high_priority = subjects["by_priority"]["high"]
+```
+
+```javascript fetch
+async function getTicketSubjects(token) {
+  const res = await fetch("http://localhost:8000/api/v1/tickets/subjects", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const { data } = await res.json();
+  return data;
+}
+
+// Uso
+const subjects = await getTicketSubjects(token);
+console.log(subjects.by_priority.high); // array de asuntos alta prioridad
+console.log(subjects.all);              // todos los asuntos
+```
+
+</CodeGroup>
+
+## Error Responses
+
+### 401 Unauthorized — Missing or Invalid Token
+
+```json
+{
+  "detail": "Could not validate credentials."
+}
+```
+
+## Use Case: Bot Integration
+
+Este endpoint es especialmente útil para bots de WhatsApp o interfaces de autoservicio:
+
+1. **Al iniciar un flujo de soporte**, llama a `GET /api/v1/tickets/subjects` para obtener la lista actualizada.
+2. **Muestra las opciones al usuario** agrupadas por urgencia o como lista plana.
+3. **Al crear el ticket**, pasa el asunto seleccionado a `POST /api/v1/tickets`. WispHub asignará automáticamente la prioridad basada en el asunto.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Create Ticket" icon="ticket-plus" href="/api-reference/tickets/create-ticket">
+    Crea un ticket usando uno de estos asuntos
+  </Card>
+  <Card title="Check Zone Blocked" icon="ban" href="/api-reference/tickets/check-zone-blocked">
+    Verifica si la zona tiene cupo antes de crear el ticket
+  </Card>
+</CardGroup>

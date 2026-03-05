@@ -71,6 +71,12 @@
             ]
           },
           {
+            "group": "Authentication",
+            "pages": [
+              "api-reference/auth/login"
+            ]
+          },
+          {
             "group": "Clients",
             "pages": [
               "api-reference/clients/list-clients",
@@ -93,6 +99,7 @@
           {
             "group": "Tickets",
             "pages": [
+              "api-reference/tickets/list-subjects",
               "api-reference/tickets/create-ticket",
               "api-reference/tickets/get-ticket",
               "api-reference/tickets/check-zone-blocked"
