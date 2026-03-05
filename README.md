@@ -1,5 +1,7 @@
 # WispHub API Middleware
 
+📖 **Full documentation:** [docs-wisphub.ainovapro.com](https://docs-wisphub.ainovapro.com/)
+
 This repository contains a high-performance RESTful API built with FastAPI. It serves as an intermediate middleware layer connecting WispHub Net with third-party applications or conversational interfaces (e.g., WhatsApp bots via Twilio). This API abstracts, optimizes, and secures access to WispHub's billing, client, and support ticket management endpoints.
 
 ## Architecture & Core Capabilities
