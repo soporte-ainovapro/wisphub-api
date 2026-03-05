@@ -18,7 +18,7 @@ Creates and initializes a new technical support ticket in WispHub. This endpoint
 </ParamField>
 
 <ParamField body="subject" type="string" required>
-  Brief summary of the ticket issue
+  Brief summary of the ticket issue. **Must match exactly one of the valid subjects returned by [`GET /api/v1/tickets/subjects`](/api-reference/tickets/list-subjects).** WispHub uses this value to automatically assign the ticket's priority level.
 </ParamField>
 
 <ParamField body="description" type="string" required>
