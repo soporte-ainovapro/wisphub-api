@@ -1,0 +1,152 @@
+---
+mode: "custom"
+---
+
+<div className="relative min-h-[500px] bg-gradient-to-br from-[#0cc493] via-[#00b38f] to-[#00a385] dark:from-[#0a9d76] dark:via-[#008f72] dark:to-[#007d63] py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+  <div className="absolute inset-0 bg-black/20 dark:bg-black/30"></div>
+  <div className="relative max-w-7xl mx-auto">
+    <div className="text-center">
+      <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-6">
+        WispHub API
+      </h1>
+      <p className="text-xl sm:text-2xl text-white/95 max-w-3xl mx-auto mb-10">
+        High-performance FastAPI middleware connecting WispHub Net with third-party applications and conversational interfaces
+      </p>
+      <div className="flex flex-wrap justify-center gap-4">
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center px-8 py-4 text-lg font-semibold rounded-lg bg-white text-[#00b38f] hover:bg-gray-100 dark:bg-white dark:text-[#00b38f] dark:hover:bg-gray-200 transition-colors no-underline shadow-lg"
+        >
+          Get Started
+        </a>
+        <a 
+          href="/api-reference/overview" 
+          className="inline-flex items-center px-8 py-4 text-lg font-semibold rounded-lg border-2 border-white/30 bg-white/10 text-white hover:bg-white/20 dark:border-white/40 dark:bg-white/15 dark:hover:bg-white/25 backdrop-blur-sm transition-colors no-underline"
+        >
+          API Reference
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Quick Start</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Get WispHub API up and running in minutes</p>
+  
+  <Steps>
+    <Step title="Set up environment variables">
+      Create a `.env` file in your project root with your WispHub credentials:
+      
+      ```bash
+      WISPHUB_NET_KEY=your_api_key_here
+      WISPHUB_NET_HOST=https://api.wisphub.net
+      MAX_ACTIVE_TICKETS_PER_ZONE=3
+      ```
+    </Step>
+    
+    <Step title="Deploy with Docker">
+      Build and run the containerized API:
+      
+      ```bash
+      docker build -t wisphubapi:latest .
+      docker run -d --name wisphub_api_server -p 8000:8000 --env-file .env wisphubapi:latest
+      ```
+      
+      The API will be available at `http://localhost:8000`
+    </Step>
+    
+    <Step title="Make your first request">
+      Test the health check endpoint:
+      
+      ```bash
+      curl http://localhost:8000/health
+      ```
+      
+      <Accordion title="Example Response">
+      ```json
+      {
+        "success": true,
+        "action": null,
+        "message": null,
+        "data": {
+          "status": "ok",
+          "service": "WispHub Local API"
+        }
+      }
+      ```
+      </Accordion>
+    </Step>
+    
+    <Step title="Explore the API">
+      Visit the interactive API documentation at `http://localhost:8000/docs` to explore all available endpoints.
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Key Features</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Powerful capabilities designed for high-performance integrations</p>
+  
+  <CardGroup cols={2}>
+    <Card title="LRU Caching" icon="gauge-high" href="/caching">
+      In-memory caching with custom TTL strategies drops response times to under 5ms for cached queries
+    </Card>
+    <Card title="Client Discovery" icon="magnifying-glass" href="/api-reference/clients/search">
+      Flexible search with partial string matching when exact identifiers are unavailable
+    </Card>
+    <Card title="Identity Verification" icon="shield-check" href="/api-reference/clients/verify">
+      Algorithmic verification comparing billing and address data against WispHub records
+    </Card>
+    <Card title="Dynamic Profiling" icon="user-pen" href="/api-reference/clients/update">
+      On-the-fly database updates to enrich client profiles with missing information
+    </Card>
+    <Card title="Ticket Management" icon="ticket" href="/api-reference/tickets/create-ticket">
+      Support ticket creation with zone limits to prevent service saturation
+    </Card>
+    <Card title="Network Diagnostics" icon="network-wired" href="/api-reference/network/create-ping">
+      Asynchronous ICMP ping diagnostics for connection troubleshooting
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Explore by Topic</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Dive deep into specific areas of the API</p>
+  
+  <CardGroup cols={3}>
+    <Card title="Architecture" icon="sitemap" href="/architecture">
+      Learn about the middleware design and caching strategy
+    </Card>
+    <Card title="Authentication" icon="key" href="/authentication">
+      Understand how to authenticate with WispHub Net
+    </Card>
+    <Card title="Deployment" icon="docker" href="/deployment/docker">
+      Deploy to production with Docker and environment configuration
+    </Card>
+    <Card title="Testing" icon="flask" href="/testing/overview">
+      Run unit tests and load testing with Pytest and Locust
+    </Card>
+    <Card title="Clients API" icon="users" href="/api-reference/clients/list-clients">
+      Search, verify, and update client information
+    </Card>
+    <Card title="Plans API" icon="wifi" href="/api-reference/internet-plans/list-plans">
+      Retrieve internet plan details and pricing
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-r from-[#0cc493] to-[#00b38f] dark:from-[#0a9d76] dark:to-[#008f72] p-10 text-center border border-[#0cc493]/20 dark:border-[#0a9d76]/30">
+    <h2 className="text-3xl font-bold text-white mb-4">Ready to Get Started?</h2>
+    <p className="text-lg text-white/95 mb-8 max-w-2xl mx-auto">
+      Set up WispHub API in minutes and start building powerful integrations with WispHub Net
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-8 py-4 text-lg font-semibold rounded-lg bg-white text-[#00b38f] hover:bg-gray-100 dark:bg-white dark:text-[#00b38f] dark:hover:bg-gray-200 transition-colors no-underline shadow-lg"
+    >
+      View Quickstart Guide
+    </a>
+  </div>
+</div>

@@ -1,0 +1,181 @@
+---
+title: 'Check Zone Blocked'
+description: 'Verify if a zone has exceeded the maximum ticket limit'
+---
+
+## GET /api/v1/tickets/zone-blocked/{zone_id}
+
+Quickly verifies if a specific zone has exceeded the maximum limit of open tickets in WispHub. Returns a boolean indicator and the currently configured limit. This endpoint is useful for preventing ticket creation attempts that would be rejected due to zone saturation.
+
+<Note>
+  Use this endpoint before attempting to create a ticket to provide better user experience by checking zone availability upfront.
+</Note>
+
+### Path Parameters
+
+<ParamField path="zone_id" type="integer" required>
+  The unique identifier of the customer zone to check
+</ParamField>
+
+### Response
+
+The endpoint returns a `BackendResponse` wrapper with the following structure:
+
+<ResponseField name="ok" type="boolean">
+  Always true for successful requests
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Response type: `success`
+</ResponseField>
+
+<ResponseField name="action" type="string">
+  Action identifier: `ticket_found` (indicates successful check)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Zone blocking status information
+  
+  <Expandable title="Data Object">
+    <ResponseField name="is_blocked" type="boolean">
+      Indicates whether the zone has reached the maximum number of active tickets:
+      - `true`: Zone is blocked - cannot create new tickets
+      - `false`: Zone is available - new tickets can be created
+    </ResponseField>
+    
+    <ResponseField name="max_tickets" type="integer">
+      The configured maximum number of active tickets allowed per zone (default: 3)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string | null">
+  Optional message providing additional context
+</ResponseField>
+
+<ResponseField name="meta" type="object | null">
+  Optional metadata
+</ResponseField>
+
+### Zone Blocking Rules
+
+A zone is considered blocked when:
+
+- The number of active tickets >= `MAX_ACTIVE_TICKETS_PER_ZONE` (default: 3)
+- Active tickets are those in states defined by `ACTIVE_TICKET_STATES` (default: state 1)
+- Only open/in-progress tickets count toward the limit
+- Closed or resolved tickets do not affect the count
+
+### Configuration
+
+The blocking behavior is controlled by these environment variables:
+
+**MAX_ACTIVE_TICKETS_PER_ZONE**
+- Default value: `3`
+- Controls how many active tickets a zone can have simultaneously
+- Configurable via environment variable
+
+**ACTIVE_TICKET_STATES**
+- Default value: `(1,)`
+- Defines which ticket states are considered "active"
+- Typically includes "Abierto" (Open) and "En Progreso" (In Progress)
+
+<CodeGroup>
+
+```bash curl
+curl -X GET https://api.wisphub.net/api/v1/tickets/zone-blocked/5
+```
+
+```python Python
+import requests
+
+zone_id = 5
+url = f"https://api.wisphub.net/api/v1/tickets/zone-blocked/{zone_id}"
+
+response = requests.get(url)
+data = response.json()
+
+if data["data"]["is_blocked"]:
+    print(f"Zone {zone_id} is blocked. Max tickets: {data['data']['max_tickets']}")
+else:
+    print(f"Zone {zone_id} is available for new tickets")
+```
+
+```javascript JavaScript
+const zoneId = 5;
+const response = await fetch(`https://api.wisphub.net/api/v1/tickets/zone-blocked/${zoneId}`, {
+  method: 'GET'
+});
+
+const data = await response.json();
+
+if (data.data.is_blocked) {
+  console.log(`Zone ${zoneId} is blocked. Max tickets: ${data.data.max_tickets}`);
+} else {
+  console.log(`Zone ${zoneId} is available for new tickets`);
+}
+```
+
+</CodeGroup>
+
+### Example Responses
+
+<CodeGroup>
+
+```json Zone Blocked
+{
+  "ok": true,
+  "type": "success",
+  "action": "ticket_found",
+  "data": {
+    "is_blocked": true,
+    "max_tickets": 3
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+```json Zone Available
+{
+  "ok": true,
+  "type": "success",
+  "action": "ticket_found",
+  "data": {
+    "is_blocked": false,
+    "max_tickets": 3
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+</CodeGroup>
+
+### Usage Workflow
+
+Recommended flow for creating tickets with zone validation:
+
+1. **Check zone availability** using this endpoint
+2. **If `is_blocked: false`**: Proceed with ticket creation via POST /api/v1/tickets
+3. **If `is_blocked: true`**: Display error message to user
+   - Inform user that the zone has reached maximum capacity
+   - Show `max_tickets` value from response
+   - Suggest waiting for existing tickets to be resolved
+
+<Warning>
+  Even if this endpoint returns `is_blocked: false`, the ticket creation endpoint (POST /api/v1/tickets) performs its own validation. In high-concurrency scenarios, a ticket might be created between the check and creation attempt, causing the POST to fail with `zone_ticket_limit_reached`.
+</Warning>
+
+### Why Zone Limits Exist
+
+Zone-level ticket limits prevent:
+- **Technician saturation**: Too many simultaneous visits to the same area
+- **Resource overload**: Ensures balanced workload distribution
+- **Service quality**: Maintains manageable queue sizes
+- **Customer experience**: Prevents unrealistic resolution expectations
+
+When a zone is blocked, it indicates high support activity in that area. Encourage customers to:
+- Wait for existing tickets to be resolved
+- Check if their issue is related to an existing mass outage ticket
+- Contact support via alternative channels for urgent issues

@@ -1,0 +1,123 @@
+{
+  "projectType": "api-service",
+  "projectName": "WispHub API",
+  "projectDescription": "High-performance FastAPI middleware connecting WispHub Net with third-party applications and conversational interfaces.",
+  "theme": "aspen",
+  "primaryColor": "#0cc493",
+  "lightColor": "#79e6ce",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "architecture",
+              "caching",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/environment",
+              "deployment/local-development"
+            ]
+          },
+          {
+            "group": "Testing",
+            "pages": [
+              "testing/overview",
+              "testing/load-testing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/responses"
+            ]
+          },
+          {
+            "group": "Clients",
+            "pages": [
+              "api-reference/clients/list-clients",
+              "api-reference/clients/get-by-document",
+              "api-reference/clients/get-by-phone",
+              "api-reference/clients/get-by-service-id",
+              "api-reference/clients/search",
+              "api-reference/clients/update",
+              "api-reference/clients/verify",
+              "api-reference/clients/resolve"
+            ]
+          },
+          {
+            "group": "Internet Plans",
+            "pages": [
+              "api-reference/internet-plans/list-plans",
+              "api-reference/internet-plans/get-plan"
+            ]
+          },
+          {
+            "group": "Tickets",
+            "pages": [
+              "api-reference/tickets/create-ticket",
+              "api-reference/tickets/get-ticket",
+              "api-reference/tickets/check-zone-blocked"
+            ]
+          },
+          {
+            "group": "Network",
+            "pages": [
+              "api-reference/network/create-ping",
+              "api-reference/network/get-ping-result"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "In-memory LRU caching with custom TTL strategies",
+    "Flexible client discovery with partial string matching",
+    "Algorithmic identity verification endpoint",
+    "Dynamic client profile patching",
+    "Support ticket management with zone limits",
+    "Network diagnostics (ICMP ping)",
+    "Unified BackendResponse payload structure",
+    "High-performance async architecture"
+  ],
+  "publicApiSurface": [
+    "GET /api/v1/clients/",
+    "GET /api/v1/clients/by-document/{document}",
+    "GET /api/v1/clients/by-phone/{phone}",
+    "GET /api/v1/clients/by-service-id/{service_id}",
+    "GET /api/v1/clients/search",
+    "PUT /api/v1/clients/{service_id}",
+    "POST /api/v1/clients/{service_id}/verify",
+    "POST /api/v1/clients/resolve",
+    "GET /api/v1/internet-plans/",
+    "GET /api/v1/internet-plans/{plan_id}",
+    "POST /api/v1/tickets",
+    "GET /api/v1/tickets/{ticket_id}",
+    "GET /api/v1/tickets/zone-blocked/{zone_id}",
+    "POST /api/v1/{service_id}/ping/",
+    "GET /api/v1/ping/{task_id}/",
+    "GET /health"
+  ]
+}

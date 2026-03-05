@@ -1,0 +1,242 @@
+---
+title: "Verify Client Identity"
+description: "Verify client identity using billing and service information"
+---
+
+## POST /api/v1/clients/{service_id}/verify
+
+Verifies a client's identity based on their billing data (such as plan name, plan price, or residential address). If the data matches cleanly, the client is verified and can proceed with operations like WhatsApp bot interactions.
+
+### Path Parameters
+
+<ParamField path="service_id" type="integer" required>
+  The unique WispHub service identifier of the client to verify.
+</ParamField>
+
+### Request Body
+
+<ParamField body="name" type="string">
+  The client's name to verify against. This is compared using partial matching (normalized).
+</ParamField>
+
+<ParamField body="address" type="string">
+  The client's address to verify. Common prefixes like "V/", "VDA/", "VEREDA", "BARRIO", "B/" are automatically normalized.
+</ParamField>
+
+<ParamField body="internet_plan_name" type="string">
+  The name of the internet plan to verify.
+</ParamField>
+
+<ParamField body="internet_plan_price" type="float">
+  The price of the internet plan to verify. Allows a tolerance of ±1.0 for matching.
+</ParamField>
+
+<Note>
+  **At least 3 of the 4 fields** (name, address, internet_plan_name, internet_plan_price) must be provided for verification to proceed.
+</Note>
+
+### Response
+
+Returns a `BackendResponse` containing verification results.
+
+<ResponseField name="ok" type="boolean" required>
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Response type (e.g., "success", "error")
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Action identifier: `client_verified` or `client_verification_failed`
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Verification result data
+  
+  <Expandable title="Verification data properties">
+    <ResponseField name="is_valid" type="boolean">
+      Whether the client's identity was successfully verified
+    </ResponseField>
+    
+    <ResponseField name="matched_fields" type="array">
+      Array of field names that matched (e.g., ["name", "address", "internet_plan_price"])
+    </ResponseField>
+    
+    <ResponseField name="debug" type="object">
+      Debug information (only included when verification fails)
+      
+      <Expandable title="Debug properties">
+        <ResponseField name="client_address" type="string">
+          The actual address from WispHub records
+        </ResponseField>
+        
+        <ResponseField name="client_plan_name" type="string">
+          The actual plan name from WispHub records
+        </ResponseField>
+        
+        <ResponseField name="resolved_plan_price" type="float">
+          The resolved plan price (may be fetched from plan details if not in client record)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Descriptive message about the verification result
+</ResponseField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl
+curl -X POST "https://api.wisphub.example/api/v1/clients/12345/verify" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Juan Pérez",
+    "address": "Calle 123",
+    "internet_plan_name": "Plan 50MB",
+    "internet_plan_price": 50000.0
+  }'
+```
+
+```python Python
+import requests
+
+service_id = 12345
+url = f"https://api.wisphub.example/api/v1/clients/{service_id}/verify"
+
+headers = {
+    "Content-Type": "application/json"
+}
+
+payload = {
+    "name": "Juan Pérez",
+    "address": "Calle 123",
+    "internet_plan_name": "Plan 50MB",
+    "internet_plan_price": 50000.0
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript JavaScript
+const serviceId = 12345;
+
+fetch(`https://api.wisphub.example/api/v1/clients/${serviceId}/verify`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Juan Pérez',
+    address: 'Calle 123',
+    internet_plan_name: 'Plan 50MB',
+    internet_plan_price: 50000.0
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+</CodeGroup>
+
+### Example Response
+
+#### Successful verification
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "client_verified",
+  "data": {
+    "is_valid": true,
+    "matched_fields": [
+      "name",
+      "address",
+      "internet_plan_name",
+      "internet_plan_price"
+    ]
+  },
+  "message": "Identidad validada de manera exitosa."
+}
+```
+
+#### Failed verification
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "client_verification_failed",
+  "data": {
+    "is_valid": false,
+    "matched_fields": [
+      "name",
+      "address"
+    ],
+    "debug": {
+      "client_address": "V/ Calle 123 #45-67",
+      "client_plan_name": "Plan 50MB",
+      "resolved_plan_price": 55000.0
+    }
+  },
+  "message": "Los datos proporcionados no coinciden con la información registrada."
+}
+```
+
+### Error Responses
+
+<ResponseField name="400 Bad Request - Insufficient fields">
+  Less than 3 fields were provided for verification
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "client_verification_failed",
+    "data": null,
+    "message": "Se requieren al menos 3 campos para verificar la identidad (nombre, dirección, plan, precio)."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  Client with the specified service_id was not found
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "client_not_found",
+    "data": null,
+    "message": "El cliente especificado no fue encontrado en el sistema."
+  }
+  ```
+</ResponseField>
+
+### Verification Logic
+
+<Note>
+  **String Matching**: The verification uses normalized partial string matching. For addresses, common prefixes like "V/", "VDA/", "VEREDA", "BARRIO", and "B/" are automatically stripped before comparison.
+</Note>
+
+<Note>
+  **Price Tolerance**: When comparing prices, a tolerance of ±1.0 is allowed to account for rounding differences.
+</Note>
+
+<Note>
+  **All Fields Must Match**: For verification to succeed, **ALL** fields provided in the request must match. If you provide 4 fields, all 4 must match. If you provide 3 fields, all 3 must match.
+</Note>
+
+<Warning>
+  If the plan price is not available in the client record, the system will attempt to fetch it from the internet plans API. This may add latency to the request.
+</Warning>
+
+### Use Cases
+
+- **WhatsApp Bot Authentication**: Verify users interacting with your WhatsApp bot before granting access to sensitive operations
+- **Self-Service Portal**: Allow clients to verify their identity before viewing billing information
+- **Customer Support**: Verify caller identity before providing account details

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "WispHub API",
+  "theme": "aspen",
+  "colors": {
+    "primary": "#0cc493",
+    "light": "#79e6ce",
+    "dark": "#0cc493"
+  },
+  "favicon": "https://media.brand.dev/974ef74d-88bc-413b-97a2-b26159f83d21.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/974ef74d-88bc-413b-97a2-b26159f83d21.jpg",
+    "dark": "https://media.brand.dev/974ef74d-88bc-413b-97a2-b26159f83d21.jpg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/soporte-ainovapro/wisphub-api"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/soporte-ainovapro/wisphub-api"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "architecture",
+              "caching",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/environment",
+              "deployment/local-development"
+            ]
+          },
+          {
+            "group": "Testing",
+            "pages": [
+              "testing/overview",
+              "testing/load-testing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/responses"
+            ]
+          },
+          {
+            "group": "Clients",
+            "pages": [
+              "api-reference/clients/list-clients",
+              "api-reference/clients/get-by-document",
+              "api-reference/clients/get-by-phone",
+              "api-reference/clients/get-by-service-id",
+              "api-reference/clients/search",
+              "api-reference/clients/update",
+              "api-reference/clients/verify",
+              "api-reference/clients/resolve"
+            ]
+          },
+          {
+            "group": "Internet Plans",
+            "pages": [
+              "api-reference/internet-plans/list-plans",
+              "api-reference/internet-plans/get-plan"
+            ]
+          },
+          {
+            "group": "Tickets",
+            "pages": [
+              "api-reference/tickets/create-ticket",
+              "api-reference/tickets/get-ticket",
+              "api-reference/tickets/check-zone-blocked"
+            ]
+          },
+          {
+            "group": "Network",
+            "pages": [
+              "api-reference/network/create-ping",
+              "api-reference/network/get-ping-result"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,199 @@
+---
+title: "List Clients"
+description: "Retrieve a list of all active clients registered in the system"
+---
+
+## GET /api/v1/clients/
+
+Retrieves the general list of all active clients registered in the WispHub system. Returns a parsed list with essential details of each service and contact information.
+
+### Response
+
+Returns a `BackendResponse` containing an array of `ClientResponse` objects.
+
+<ResponseField name="ok" type="boolean" required>
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Response type (e.g., "success", "error")
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Action identifier: `clients_listed`
+</ResponseField>
+
+<ResponseField name="data" type="array" required>
+  Array of client objects
+  
+  <Expandable title="ClientResponse properties">
+    <ResponseField name="service_id" type="integer">
+      Unique service identifier in WispHub
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Client's full name
+    </ResponseField>
+    
+    <ResponseField name="document" type="string">
+      Client's identity document (cédula)
+    </ResponseField>
+    
+    <ResponseField name="phone" type="string">
+      Client's phone number
+    </ResponseField>
+    
+    <ResponseField name="address" type="string">
+      Client's physical address
+    </ResponseField>
+    
+    <ResponseField name="city" type="string">
+      Client's city
+    </ResponseField>
+    
+    <ResponseField name="locality" type="string">
+      Client's locality or neighborhood
+    </ResponseField>
+    
+    <ResponseField name="payment_status" type="string">
+      Current payment status
+    </ResponseField>
+    
+    <ResponseField name="zone_id" type="integer">
+      Service zone identifier
+    </ResponseField>
+    
+    <ResponseField name="antenna_ip" type="string">
+      IP address of the assigned antenna
+    </ResponseField>
+    
+    <ResponseField name="cut_off_date" type="string">
+      Service cut-off date
+    </ResponseField>
+    
+    <ResponseField name="outstanding_balance" type="float">
+      Outstanding balance amount
+    </ResponseField>
+    
+    <ResponseField name="lan_interface" type="string">
+      LAN interface identifier
+    </ResponseField>
+    
+    <ResponseField name="internet_plan_name" type="string">
+      Name of the internet plan
+    </ResponseField>
+    
+    <ResponseField name="internet_plan_price" type="float">
+      Price of the internet plan
+    </ResponseField>
+    
+    <ResponseField name="technician_id" type="integer">
+      Assigned technician identifier
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Optional message providing additional context
+</ResponseField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl
+curl -X GET "https://api.wisphub.example/api/v1/clients/" \
+  -H "Content-Type: application/json"
+```
+
+```python Python
+import requests
+
+url = "https://api.wisphub.example/api/v1/clients/"
+headers = {
+    "Content-Type": "application/json"
+}
+
+response = requests.get(url, headers=headers)
+print(response.json())
+```
+
+```javascript JavaScript
+fetch('https://api.wisphub.example/api/v1/clients/', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "clients_listed",
+  "data": [
+    {
+      "service_id": 12345,
+      "name": "Juan Pérez",
+      "document": "1234567890",
+      "phone": "+573001234567",
+      "address": "Calle 123 #45-67",
+      "city": "Bogotá",
+      "locality": "Centro",
+      "payment_status": "active",
+      "zone_id": 5,
+      "antenna_ip": "192.168.1.1",
+      "cut_off_date": "2026-03-15",
+      "outstanding_balance": 0.0,
+      "lan_interface": "eth0",
+      "internet_plan_name": "Plan 50MB",
+      "internet_plan_price": 50000.0,
+      "technician_id": 10
+    },
+    {
+      "service_id": 12346,
+      "name": "María González",
+      "document": "9876543210",
+      "phone": "+573009876543",
+      "address": "Carrera 45 #12-34",
+      "city": "Medellín",
+      "locality": "Poblado",
+      "payment_status": "active",
+      "zone_id": 3,
+      "antenna_ip": "192.168.1.2",
+      "cut_off_date": "2026-03-20",
+      "outstanding_balance": 25000.0,
+      "lan_interface": "eth1",
+      "internet_plan_name": "Plan 100MB",
+      "internet_plan_price": 75000.0,
+      "technician_id": 8
+    }
+  ],
+  "message": null
+}
+```
+
+### Error Responses
+
+<ResponseField name="500 Internal Server Error">
+  An error occurred while fetching clients from WispHub
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "error",
+    "data": null,
+    "message": "Failed to retrieve clients"
+  }
+  ```
+</ResponseField>
+
+<Note>
+  This endpoint returns all active clients in the system. For searching specific clients, use the [Search Clients](/api-reference/clients/search) endpoint.
+</Note>

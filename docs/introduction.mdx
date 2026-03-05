@@ -1,0 +1,135 @@
+---
+title: Introduction
+description: High-performance RESTful API middleware connecting WispHub Net with third-party applications and conversational interfaces
+---
+
+# WispHub API Middleware
+
+Welcome to the WispHub API documentation. This high-performance RESTful API is built with FastAPI and serves as an intermediate middleware layer connecting WispHub Net with third-party applications and conversational interfaces such as WhatsApp bots via Twilio.
+
+## Overview
+
+The WispHub API abstracts, optimizes, and secures access to WispHub's billing, client, and support ticket management endpoints. The architecture is specifically designed to mitigate the inherent load placed on external services by conversational bots, reducing latency and preventing rate-limiting on the WispHub API.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="In-Memory Caching" icon="bolt">
+    LRU caching with custom TTL strategies drops response times from sub-second to under 5ms for cached queries
+  </Card>
+  
+  <Card title="Flexible Client Discovery" icon="magnifying-glass">
+    Specialized search routes with partial string matching for robust entity resolution from unstructured input
+  </Card>
+  
+  <Card title="Identity Verification" icon="shield-check">
+    Algorithmic verification validates ownership by comparing billing and address data against WispHub records
+  </Card>
+  
+  <Card title="Dynamic Profiling" icon="user-pen">
+    On-the-fly database updates to enrich client profiles with missing critical information
+  </Card>
+</CardGroup>
+
+## Architecture Benefits
+
+### Performance Optimization
+
+The API implements Least Recently Used (LRU) caching via `async_lru` for resource-intensive data retrieval operations:
+
+- **Global client list**: Cached for 5 minutes (300s)
+- **Internet plans**: Cached for 15 minutes (900s)
+- **Response time improvement**: From sub-second to under 5 milliseconds for cached queries
+
+This effectively eliminates repeated network roundtrips and dramatically improves response times for bot interactions.
+
+### Exception Handling
+
+Features a unified JSON payload structure (`BackendResponse`) mapped over the standard Pydantic validation workflow and HTTP error status codes, providing a consistent consumption interface for frontend architectures.
+
+Every response follows this structure:
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "CLIENT_FOUND",
+  "data": { ... },
+  "message": "Optional message",
+  "meta": { ... }
+}
+```
+
+## Technology Stack
+
+<Steps>
+  <Step title="API Framework">
+    **FastAPI** (Python 3.12) - Modern, fast web framework for building APIs with automatic OpenAPI documentation
+  </Step>
+  
+  <Step title="Data Validation">
+    **Pydantic V2** - Data validation using Python type annotations
+  </Step>
+  
+  <Step title="HTTP Client">
+    **HTTPX** - Asynchronous HTTP client for communicating with WispHub Net
+  </Step>
+  
+  <Step title="Caching">
+    **async_lru** - Asynchronous LRU cache implementation for optimal performance
+  </Step>
+  
+  <Step title="Application Server">
+    **Uvicorn** (ASGI) + **Gunicorn** (Process Manager) for production deployment
+  </Step>
+  
+  <Step title="Testing">
+    **Pytest**, **pytest-asyncio**, **Respx**, and **Locust** for comprehensive testing
+  </Step>
+</Steps>
+
+## API Modules
+
+The API is organized into four main modules:
+
+### Clients Module
+
+Manage and search client information with multiple lookup strategies:
+- Exact matching by document ID or phone number
+- Flexible fuzzy search
+- Profile updates
+- Identity verification
+- Single-pass client resolution
+
+### Internet Plans Module
+
+Access internet plan information:
+- List all available plans (cached)
+- Retrieve detailed plan specifications
+- Support for PPPOE, Simple Queue, and PCQ plan types
+
+### Technical Tickets Module
+
+Create and manage support tickets:
+- Instantiate standardized escalation workflows
+- Zone-based ticket limiting to prevent saturation
+- Automatic resolution date calculation
+
+### Network Module
+
+Monitor and diagnose network connectivity for clients
+
+## Performance Metrics
+
+<Note>
+Empirical evaluation demonstrates the server effectively handles **>40 Requests Per Second (RPS)** sustaining 0.00% failure rates on read-intensive cached routes under persistent load.
+</Note>
+
+## Getting Started
+
+Ready to get started? Check out the [Quickstart Guide](/quickstart) to set up and run the WispHub API in minutes.
+
+For deployment instructions, see:
+- [Docker Deployment](/deployment/docker)
+- [Local Development Setup](/deployment/local-development)
+- [Environment Configuration](/deployment/environment)

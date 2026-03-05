@@ -1,0 +1,350 @@
+---
+title: Authentication
+description: Understanding WispHub API authentication using API keys for secure access to WispHub Net
+---
+
+# Authentication
+
+The WispHub API uses API key authentication to secure access to the WispHub Net infrastructure. This page explains how authentication works and how to configure it properly.
+
+## Authentication Flow
+
+```
+┌──────────────┐
+│ Client App   │
+│ (Bot/Web)    │
+└──────┬───────┘
+       │
+       │ HTTP Request
+       ▼
+┌──────────────────┐
+│  WispHub API     │  No auth required
+│  (This API)      │  (Internal API)
+└──────┬───────────┘
+       │
+       │ HTTP Request
+       │ Header: Authorization: Api-Key {KEY}
+       ▼
+┌──────────────────┐
+│  WispHub Net     │  API Key validation
+│  (External)      │  
+└──────────────────┘
+```
+
+<Info>
+The WispHub middleware API itself does **not** require authentication from clients. It acts as a trusted proxy that authenticates to WispHub Net on behalf of clients.
+</Info>
+
+## Configuration
+
+### Environment Variables
+
+Authentication credentials are configured via environment variables:
+
+```env .env
+WISPHUB_NET_KEY=your_api_key_here
+WISPHUB_NET_HOST=https://api.wisphub.net
+```
+
+<Warning>
+Never commit the `.env` file to version control. Add it to `.gitignore` to prevent credential leakage.
+</Warning>
+
+### Settings Management
+
+Credentials are loaded using Pydantic Settings:
+
+```python app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
+    # WispHub Net authentication
+    WISPHUB_NET_KEY: str
+    WISPHUB_NET_HOST: str
+    
+    # ... other settings
+
+settings = Settings()
+```
+
+<Tip>
+The `case_sensitive=True` setting ensures environment variable names must match exactly (e.g., `WISPHUB_NET_KEY`, not `wisphub_net_key`).
+</Tip>
+
+## Authentication Headers
+
+All requests to WispHub Net include the API key in the `Authorization` header:
+
+```python app/services/clients_service.py
+HEADERS = {
+    "Authorization": f"Api-Key {settings.WISPHUB_NET_KEY}"
+}
+
+async def fetch_client(params: Dict[str, str]) -> Optional[ClientResponse]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            settings.CLIENTS_URL,
+            headers=HEADERS,
+            params=params
+        )
+```
+
+The format is:
+```
+Authorization: Api-Key <your_api_key>
+```
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use Environment Variables">
+    Never hardcode API keys in source code. Always use environment variables:
+    
+    ```python
+    # ❌ NEVER DO THIS
+    API_KEY = "abc123def456"
+    
+    # ✅ CORRECT
+    API_KEY = os.getenv("WISPHUB_NET_KEY")
+    ```
+  </Step>
+  
+  <Step title="Restrict File Permissions">
+    Ensure the `.env` file has restricted permissions:
+    
+    ```bash
+    chmod 600 .env
+    ```
+    
+    This makes it readable only by the file owner.
+  </Step>
+  
+  <Step title="Use Secrets Management in Production">
+    For production deployments, use proper secrets management:
+    
+    - **Docker**: Use Docker secrets or environment variables
+    - **Kubernetes**: Use Kubernetes secrets
+    - **Cloud**: Use AWS Secrets Manager, Azure Key Vault, or Google Secret Manager
+  </Step>
+  
+  <Step title="Rotate Keys Regularly">
+    Establish a key rotation policy:
+    
+    - Generate new API keys quarterly
+    - Invalidate old keys after migration
+    - Maintain audit log of key usage
+  </Step>
+  
+  <Step title="Monitor for Unauthorized Access">
+    Watch WispHub Net logs for:
+    
+    - Unexpected API usage patterns
+    - Failed authentication attempts
+    - Requests from unknown IP addresses
+  </Step>
+</Steps>
+
+## Docker Deployment
+
+When deploying with Docker, pass environment variables securely:
+
+### Using --env-file (Development)
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest
+```
+
+### Using Docker Secrets (Production)
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  api:
+    image: wisphubapi:latest
+    ports:
+      - "8000:8000"
+    secrets:
+      - wisphub_api_key
+    environment:
+      WISPHUB_NET_KEY_FILE: /run/secrets/wisphub_api_key
+      WISPHUB_NET_HOST: https://api.wisphub.net
+
+secrets:
+  wisphub_api_key:
+    external: true
+```
+
+Then create the secret:
+
+```bash
+echo "your_api_key" | docker secret create wisphub_api_key -
+```
+
+## Error Handling
+
+### Invalid API Key
+
+If the API key is invalid, WispHub Net returns a 401 or 403 error:
+
+```python
+if response.status_code in [401, 403]:
+    # Authentication failed
+    return None
+```
+
+The middleware API handles this gracefully:
+
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "CLIENT_NOT_FOUND",
+  "data": null,
+  "message": "Unable to fetch client data"
+}
+```
+
+<Warning>
+Authentication failures are logged but not exposed to end users to prevent information disclosure.
+</Warning>
+
+### Missing API Key
+
+If the `WISPHUB_NET_KEY` environment variable is not set, the application will fail to start:
+
+```python
+from pydantic import ValidationError
+
+try:
+    settings = Settings()
+except ValidationError as e:
+    print(f"Configuration error: {e}")
+    sys.exit(1)
+```
+
+Error output:
+```
+Configuration error: 1 validation error for Settings
+WISPHUB_NET_KEY
+  field required (type=value_error.missing)
+```
+
+## Testing Authentication
+
+For testing purposes, you can mock the authentication:
+
+```python tests/conftest.py
+import pytest
+from unittest.mock import patch
+
+@pytest.fixture
+def mock_wisphub_auth():
+    with patch('app.core.config.settings.WISPHUB_NET_KEY', 'test_key_123'):
+        yield
+```
+
+Using `respx` to mock WispHub Net responses:
+
+```python tests/api/test_clients.py
+import respx
+import httpx
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_client_fetch_with_auth():
+    respx.get("https://api.wisphub.net/api/clientes/").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={"results": [{"id_servicio": 1, "nombre": "Test"}]}
+        )
+    )
+    
+    # Test your endpoint
+    response = await async_client.get("/api/v1/clients/")
+    assert response.status_code == 200
+```
+
+## API Key Permissions
+
+The WispHub API key must have the following permissions in WispHub Net:
+
+<Accordion title="Required Permissions">
+- **Read Clients** (`api/clientes/`): View client information
+- **Update Clients** (`api/clientes/{id}/perfil/`): Update client profiles
+- **Read Plans** (`api/plan-internet/`): View internet plans
+- **Read/Write Tickets** (`api/tickets/`): Create and view support tickets
+- **Read Tasks** (`api/tasks/`): View task information
+</Accordion>
+
+<Warning>
+Use the principle of least privilege. Only grant permissions that the API actually needs.
+</Warning>
+
+## Rate Limiting
+
+WispHub Net may impose rate limits on API key usage:
+
+- **Typical limit**: 1000 requests per hour
+- **Burst limit**: 100 requests per minute
+
+The caching system helps avoid rate limits:
+
+- Without cache: ~6,000 requests/hour for 100 users
+- With cache: ~12 requests/hour for 100 users
+
+<Info>
+The 5-minute cache TTL for clients and 15-minute TTL for plans effectively keeps the API well under typical rate limits.
+</Info>
+
+## Troubleshooting
+
+### Issue: "401 Unauthorized" errors
+
+**Cause**: Invalid or expired API key
+
+**Solution**:
+1. Verify the API key in your `.env` file
+2. Check that the key hasn't been revoked in WispHub Net
+3. Ensure no extra whitespace in the environment variable
+
+```bash
+# Check the loaded value
+docker exec wisphub_api_server env | grep WISPHUB_NET_KEY
+```
+
+### Issue: "403 Forbidden" errors
+
+**Cause**: API key lacks required permissions
+
+**Solution**: Contact your WispHub administrator to grant the necessary permissions to your API key.
+
+### Issue: Application won't start
+
+**Cause**: Missing `WISPHUB_NET_KEY` environment variable
+
+**Solution**: Ensure the `.env` file exists and contains the required variable:
+
+```bash
+cat .env | grep WISPHUB_NET_KEY
+```
+
+## Related Configuration
+
+For complete configuration details, see:
+
+<CardGroup cols={2}>
+  <Card title="Environment Configuration" icon="gear" href="/deployment/environment">
+    All available environment variables
+  </Card>
+  
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Deploying with Docker and secrets
+  </Card>
+</CardGroup>

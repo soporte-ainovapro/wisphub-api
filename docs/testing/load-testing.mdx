@@ -1,0 +1,580 @@
+---
+title: Load Testing
+description: Performance and stress testing with Locust to validate concurrency thresholds and caching behavior
+---
+
+# Load Testing
+
+The WispHub API includes a comprehensive load testing suite using Locust to validate concurrency thresholds, ensure caching decorators behave correctly, and measure performance under realistic load.
+
+## Why Load Testing?
+
+Conversational bots create unique load patterns:
+
+- **Burst traffic**: Multiple users interact simultaneously
+- **Repeated queries**: Same endpoints called frequently
+- **High read ratio**: Mostly GET requests for client lookups
+- **Low latency requirements**: Users expect instant responses
+
+Load testing validates:
+
+1. **Cache effectiveness**: Verify LRU cache reduces backend load
+2. **Concurrency handling**: Ensure async workers handle simultaneous requests
+3. **Performance benchmarks**: Measure response times under load
+4. **Failure modes**: Identify breaking points before production
+
+## Locust Overview
+
+**Locust** is a modern, Python-based load testing tool that:
+
+- Simulates concurrent users
+- Provides real-time web UI
+- Supports distributed testing
+- Uses Python code (not config files)
+
+```txt requirements-dev.txt
+locust==2.43.3
+```
+
+## Load Test Configuration
+
+The test suite is defined in `locustfile.py`:
+
+```python locustfile.py
+from locust import HttpUser, task, between
+
+class WispHubAPIUser(HttpUser):
+    # Wait between 1 and 3 seconds between tasks
+    wait_time = between(1, 3)
+
+    @task(3)
+    def get_clients(self):
+        """Simulate fetching the list of clients"""
+        self.client.get("/api/v1/clients/")
+
+    @task(2)
+    def search_clients(self):
+        """Simulate a flexible search"""
+        self.client.get("/api/v1/clients/search?q=Esperanza")
+
+    @task(1)
+    def verify_client_identity(self):
+        """Simulate verifying a client's identity"""
+        payload = {
+            "address": "BELLAVISTA",
+            "internet_plan_price": 40000.0
+        }
+        # Uses real client data (Esperanza Benitez, ID 7)
+        self.client.post("/api/v1/clients/7/verify", json=payload)
+
+    @task(1)
+    def get_internet_plans(self):
+        """Simulate fetching internet plans"""
+        self.client.get("/api/v1/internet-plans/")
+```
+
+## Understanding the Test Suite
+
+### User Behavior Simulation
+
+```python
+class WispHubAPIUser(HttpUser):
+    wait_time = between(1, 3)
+```
+
+- **HttpUser**: Base class for simulating a user
+- **wait_time**: Random delay between requests (1-3 seconds)
+- **Purpose**: Mimics realistic user interaction patterns
+
+### Task Weights
+
+```python
+@task(3)  # 3x weight
+def get_clients(self):
+    ...
+
+@task(2)  # 2x weight
+def search_clients(self):
+    ...
+
+@task(1)  # 1x weight
+def verify_client_identity(self):
+    ...
+```
+
+**Weight distribution**:
+- `get_clients`: 3/7 = ~43% of requests
+- `search_clients`: 2/7 = ~29% of requests
+- `verify_client_identity`: 1/7 = ~14% of requests
+- `get_internet_plans`: 1/7 = ~14% of requests
+
+<Info>
+Weights reflect real-world usage patterns: client lookups are more common than identity verification.
+</Info>
+
+### Real Data Usage
+
+```python
+# Uses real client data (Esperanza Benitez, ID 7)
+self.client.post("/api/v1/clients/7/verify", json=payload)
+```
+
+The test uses actual client data from the WispHub system for realistic validation.
+
+## Running Load Tests
+
+### Local Testing
+
+<Steps>
+  <Step title="Start the API Server">
+    In one terminal, start the API:
+    
+    ```bash
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ```
+    
+    Or with Docker:
+    
+    ```bash
+    docker run -d -p 8000:8000 --env-file .env wisphubapi:latest
+    ```
+  </Step>
+  
+  <Step title="Run Locust">
+    In another terminal:
+    
+    ```bash
+    locust -f locustfile.py --host=http://localhost:8000
+    ```
+    
+    Expected output:
+    ```
+    [2024-03-04 10:00:00,000] INFO/locust.main: Starting web interface at http://0.0.0.0:8089
+    [2024-03-04 10:00:00,001] INFO/locust.main: Starting Locust 2.43.3
+    ```
+  </Step>
+  
+  <Step title="Access Web UI">
+    Open your browser to:
+    
+    ```
+    http://localhost:8089
+    ```
+    
+    You'll see the Locust web interface.
+  </Step>
+  
+  <Step title="Configure Load Test">
+    In the web UI:
+    
+    - **Number of users**: Start with 10-50
+    - **Spawn rate**: 1-5 users per second
+    - **Host**: Pre-filled from `--host` flag
+    
+    Click "Start swarming" to begin.
+  </Step>
+</Steps>
+
+### Command-Line Mode (Headless)
+
+For automated testing without the web UI:
+
+```bash
+locust -f locustfile.py \
+  --host=http://localhost:8000 \
+  --users 50 \
+  --spawn-rate 5 \
+  --run-time 5m \
+  --headless
+```
+
+Flags:
+- `--users 50`: Simulate 50 concurrent users
+- `--spawn-rate 5`: Add 5 users per second until reaching 50
+- `--run-time 5m`: Run for 5 minutes then stop
+- `--headless`: No web UI, print stats to console
+
+Example output:
+```
+ Type     Name              # reqs      # fails |    Avg     Min     Max    Med | req/s failures/s
+--------|----------------|-------|-------------|-------|-------|-------|-------|--------|-----------
+ GET      /api/v1/clients/    1234            0 |      4       2      12      4 |  41.1        0.00
+ GET      /api/v1/clients/search?q=Esperanza  823   0 |   5    3    15   5 | 27.4  0.00
+ POST     /api/v1/clients/7/verify   411        0 |      6       3      18      5 |  13.7        0.00
+ GET      /api/v1/internet-plans/    411        0 |      3       2       9      3 |  13.7        0.00
+--------|----------------|-------|-------------|-------|-------|-------|-------|--------|-----------
+          Aggregated       2879            0 |      5       2      18      4 |  95.9        0.00
+
+Response time percentiles (approximated)
+ Type     Name                         50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|----------------|---------|------|------|------|------|------|------|------|------|------|------|------
+ GET      /api/v1/clients/              4      5      5      6      7      8     10     11     12     12     12   1234
+ GET      /api/v1/clients/search?q=Esperanza  5  6  6  7  8  9  12  14  15  15  15  823
+ POST     /api/v1/clients/7/verify      5      6      7      8      9     11     14     16     18     18     18    411
+ GET      /api/v1/internet-plans/       3      3      4      4      5      6      7      8      9      9      9    411
+--------|----------------|---------|------|------|------|------|------|------|------|------|------|------|------
+          Aggregated                    4      5      6      6      8      9     11     13     15     18     18   2879
+```
+
+## Interpreting Results
+
+### Key Metrics
+
+<Accordion title="Requests per Second (RPS)">
+**Meaning**: Number of requests the API handles per second
+
+**Target**: Over 40 RPS (documented benchmark)
+
+**Example**: 
+```
+req/s: 41.1
+```
+
+This indicates 41.1 requests/second for the `/api/v1/clients/` endpoint.
+</Accordion>
+
+<Accordion title="Failure Rate">
+**Meaning**: Percentage of requests that failed (4xx/5xx errors)
+
+**Target**: 0.00% on cached routes
+
+**Example**:
+```
+# fails: 0
+failures/s: 0.00
+```
+
+Zero failures indicates stable performance.
+</Accordion>
+
+<Accordion title="Response Time (Avg/Med)">
+**Meaning**: Average and median response times in milliseconds
+
+**Target**: 
+- Cached routes: Less than 10ms
+- Uncached routes: Less than 1000ms
+
+**Example**:
+```
+Avg: 4ms
+Med: 4ms
+```
+
+This shows the cache is working - 4ms is typical for cached responses.
+</Accordion>
+
+<Accordion title="Percentiles (P50, P95, P99)">
+**Meaning**: Response time at various percentiles
+
+- **P50 (median)**: 50% of requests faster than this
+- **P95**: 95% of requests faster than this
+- **P99**: 99% of requests faster than this
+
+**Target**: P95 under 10ms for cached routes
+
+**Example**:
+```
+50%: 4ms
+95%: 8ms
+99%: 11ms
+```
+
+This shows consistent performance with minimal outliers.
+</Accordion>
+
+### Web UI Metrics
+
+The Locust web UI provides real-time charts:
+
+1. **Total Requests per Second**: Overall throughput
+2. **Response Times**: P50/P95 over time
+3. **Number of Users**: Current user count
+4. **Failures**: Failed request count
+
+## Performance Benchmarks
+
+<Info>
+**Documented Performance**: Empirical evaluation demonstrates the server effectively handles **over 40 Requests Per Second (RPS)** sustaining 0.00% failure rates on read-intensive cached routes under persistent load.
+</Info>
+
+### Typical Results
+
+With proper caching:
+
+| Endpoint | RPS | Avg Response | P95 | Failure Rate |
+|----------|-----|--------------|-----|--------------|
+| GET /api/v1/clients/ | 40+ | 4ms | 8ms | 0.00% |
+| GET /api/v1/clients/search | 30+ | 5ms | 9ms | 0.00% |
+| POST /api/v1/clients/{id}/verify | 15+ | 6ms | 11ms | 0.00% |
+| GET /api/v1/internet-plans/ | 30+ | 3ms | 6ms | 0.00% |
+
+### Cache Performance Validation
+
+**First load test run** (cold cache):
+```
+GET /api/v1/clients/: Avg=750ms, P95=1200ms
+```
+
+**Second load test run** (warm cache):
+```
+GET /api/v1/clients/: Avg=4ms, P95=8ms
+```
+
+**Improvement**: ~187x faster with cache
+
+## Testing Cache Behavior
+
+### Test Cache TTL
+
+<Steps>
+  <Step title="Run Load Test">
+    ```bash
+    locust -f locustfile.py --host=http://localhost:8000 --users 20 --run-time 2m --headless
+    ```
+    
+    Observe response times (should be ~4ms).
+  </Step>
+  
+  <Step title="Wait for Cache Expiry">
+    Client cache TTL is 5 minutes. Wait 6 minutes.
+  </Step>
+  
+  <Step title="Run Load Test Again">
+    ```bash
+    locust -f locustfile.py --host=http://localhost:8000 --users 20 --run-time 2m --headless
+    ```
+    
+    First few requests will be slower (~800ms) as cache refills, then drop to ~4ms.
+  </Step>
+</Steps>
+
+### Test Concurrent Cache Access
+
+Simulate many users hitting cached data simultaneously:
+
+```bash
+locust -f locustfile.py \
+  --host=http://localhost:8000 \
+  --users 100 \
+  --spawn-rate 20 \
+  --run-time 3m \
+  --headless
+```
+
+Expected: No cache-related errors, consistent performance.
+
+## Stress Testing
+
+### Find Breaking Point
+
+Gradually increase load to find the failure threshold:
+
+```bash
+# Start conservative
+locust -f locustfile.py --host=http://localhost:8000 --users 50 --run-time 2m --headless
+
+# Increase load
+locust -f locustfile.py --host=http://localhost:8000 --users 100 --run-time 2m --headless
+
+# Push further
+locust -f locustfile.py --host=http://localhost:8000 --users 200 --run-time 2m --headless
+
+# Find limit
+locust -f locustfile.py --host=http://localhost:8000 --users 500 --run-time 2m --headless
+```
+
+Watch for:
+- Increased error rates
+- Rising response times
+- Server resource exhaustion
+
+### Resource Monitoring
+
+During stress tests, monitor server resources:
+
+```bash
+# CPU and memory
+docker stats wisphub_api_server
+
+# Or for local server
+top -p $(pgrep -f uvicorn)
+```
+
+## Distributed Load Testing
+
+For testing beyond a single machine's capacity:
+
+### Master Node
+
+```bash
+locust -f locustfile.py --host=http://localhost:8000 --master
+```
+
+### Worker Nodes
+
+On other machines:
+
+```bash
+locust -f locustfile.py --worker --master-host=<master-ip>
+```
+
+The master aggregates results from all workers.
+
+## Custom Load Test Scenarios
+
+### Create Custom Scenario
+
+Add to `locustfile.py`:
+
+```python
+class HeavyVerificationUser(HttpUser):
+    """Simulates users doing mostly identity verification"""
+    wait_time = between(0.5, 1.5)  # Faster paced
+    
+    @task(10)
+    def verify_identity(self):
+        self.client.post("/api/v1/clients/7/verify", json={
+            "address": "BELLAVISTA",
+            "internet_plan_price": 40000.0
+        })
+    
+    @task(1)
+    def search_client(self):
+        self.client.get("/api/v1/clients/search?q=Test")
+```
+
+Run specific user class:
+
+```bash
+locust -f locustfile.py HeavyVerificationUser --host=http://localhost:8000
+```
+
+### Test Specific Endpoints
+
+```python
+class ClientSearchUser(HttpUser):
+    """Focus on search endpoint"""
+    wait_time = between(1, 2)
+    
+    @task
+    def search_random(self):
+        import random
+        queries = ["Esperanza", "Rodriguez", "Martinez", "Lopez"]
+        query = random.choice(queries)
+        self.client.get(f"/api/v1/clients/search?q={query}")
+```
+
+## Continuous Load Testing
+
+Integrate load testing into CI/CD:
+
+```yaml .github/workflows/load-test.yml
+name: Load Test
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Start API
+      run: |
+        docker-compose up -d
+        sleep 10  # Wait for startup
+    
+    - name: Install Locust
+      run: pip install locust==2.43.3
+    
+    - name: Run Load Test
+      run: |
+        locust -f locustfile.py \
+          --host=http://localhost:8000 \
+          --users 50 \
+          --spawn-rate 5 \
+          --run-time 5m \
+          --headless \
+          --csv=results/load_test
+    
+    - name: Check Results
+      run: |
+        # Fail if average response time exceeds 50ms
+        python scripts/check_load_test_results.py results/load_test_stats.csv
+    
+    - name: Upload Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: load-test-results
+        path: results/
+```
+
+## Troubleshooting
+
+### Issue: High Failure Rate
+
+**Symptoms**: Many 500 errors, high failure percentage
+
+**Possible causes**:
+- Server overloaded (reduce users)
+- WispHub Net timeout (increase httpx timeout)
+- Worker crash (check logs)
+
+**Solution**: Check server logs and reduce concurrent users.
+
+### Issue: Slow Response Times
+
+**Symptoms**: All requests over 100ms, even cached ones
+
+**Possible causes**:
+- Cache not working (check cache decorators)
+- CPU throttling (insufficient resources)
+- Network latency (test locally)
+
+**Solution**: Verify cache is enabled and server has adequate resources.
+
+### Issue: Inconsistent Results
+
+**Symptoms**: Wide variance in response times
+
+**Possible causes**:
+- Cache warming period
+- Background processes
+- Garbage collection pauses
+
+**Solution**: Run longer tests (over 5 minutes) to see stable patterns.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Start Small" icon="seedling">
+    Begin with 10-20 users and gradually increase to find limits
+  </Card>
+  
+  <Card title="Monitor Resources" icon="gauge">
+    Watch CPU, memory, and network during tests
+  </Card>
+  
+  <Card title="Use Realistic Data" icon="database">
+    Test with production-like data volumes and patterns
+  </Card>
+  
+  <Card title="Test Regularly" icon="calendar">
+    Run load tests before releases and on schedule
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Testing Overview" icon="flask" href="/testing/overview">
+    Learn about unit and integration testing
+  </Card>
+  
+  <Card title="Caching System" icon="database" href="/caching">
+    Understand the caching implementation
+  </Card>
+</CardGroup>

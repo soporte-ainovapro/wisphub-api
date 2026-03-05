@@ -1,0 +1,194 @@
+---
+title: "Update Client"
+description: "Update critical profile data for a client in WispHub"
+---
+
+## PUT /api/v1/clients/{service_id}
+
+Updates critical profile data for a client in WispHub, such as their phone number or identity document (cédula). Especially useful when linking users without previously structured data.
+
+### Path Parameters
+
+<ParamField path="service_id" type="integer" required>
+  The unique WispHub service identifier of the client to update.
+</ParamField>
+
+### Request Body
+
+<ParamField body="document" type="string">
+  The client's identity document number (cédula). Only include this field if you want to update it.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  The client's phone number. Only include this field if you want to update it.
+</ParamField>
+
+<Note>
+  At least one field (document or phone) must be provided. The endpoint only updates the fields that are explicitly included in the request body, preventing accidental overwrites.
+</Note>
+
+### Response
+
+Returns a `BackendResponse` with no data payload.
+
+<ResponseField name="ok" type="boolean" required>
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Response type (e.g., "success", "error")
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Action identifier: `client_updated` or `client_update_failed`
+</ResponseField>
+
+<ResponseField name="data" type="null">
+  Always null for this endpoint
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Descriptive message about the operation result
+</ResponseField>
+
+### Example Request
+
+<CodeGroup>
+```bash curl
+curl -X PUT "https://api.wisphub.example/api/v1/clients/12345" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+573001234567",
+    "document": "1234567890"
+  }'
+```
+
+```python Python
+import requests
+
+service_id = 12345
+url = f"https://api.wisphub.example/api/v1/clients/{service_id}"
+
+headers = {
+    "Content-Type": "application/json"
+}
+
+payload = {
+    "phone": "+573001234567",
+    "document": "1234567890"
+}
+
+response = requests.put(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript JavaScript
+const serviceId = 12345;
+
+fetch(`https://api.wisphub.example/api/v1/clients/${serviceId}`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    phone: '+573001234567',
+    document: '1234567890'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+</CodeGroup>
+
+### Example Response
+
+#### Successful update
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "client_updated",
+  "data": null,
+  "message": "Perfil del cliente actualizado exitosamente."
+}
+```
+
+### Error Responses
+
+<ResponseField name="400 Bad Request - No data provided">
+  No valid data was provided for update
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "client_update_failed",
+    "data": null,
+    "message": "No se brindaron datos válidos para actualizar."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  Client with the specified service_id was not found
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "client_update_failed",
+    "data": null,
+    "message": "No se pudo actualizar el cliente. Verifique el ID."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  WispHub update operation failed
+  
+  ```json
+  {
+    "ok": false,
+    "type": "error",
+    "action": "client_update_failed",
+    "data": null,
+    "message": "No se pudo actualizar el cliente. Verifique el ID."
+  }
+  ```
+</ResponseField>
+
+### Partial Updates
+
+You can update just the phone number:
+
+```json
+{
+  "phone": "+573001234567"
+}
+```
+
+Or just the document:
+
+```json
+{
+  "document": "1234567890"
+}
+```
+
+Or both fields together:
+
+```json
+{
+  "phone": "+573001234567",
+  "document": "1234567890"
+}
+```
+
+<Warning>
+  Make sure to verify the service_id before updating. Updates are applied directly to the WispHub system and cannot be automatically reverted.
+</Warning>
+
+<Note>
+  This endpoint only updates the fields provided in the request body. Fields that are not included will remain unchanged, preventing accidental data overwrites.
+</Note>

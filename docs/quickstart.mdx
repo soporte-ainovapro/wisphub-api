@@ -1,0 +1,181 @@
+---
+title: Quickstart
+description: Get WispHub API up and running in minutes with Docker
+---
+
+# Quickstart Guide
+
+Get the WispHub API running locally in just a few steps. This guide will have you making your first API request in under 5 minutes.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- Docker installed on your system
+- A WispHub Net API key
+- Basic familiarity with REST APIs
+
+## Step 1: Configure Environment Variables
+
+Create a `.env` file in your project root with your WispHub credentials:
+
+```bash .env
+WISPHUB_NET_KEY=your_api_key_here
+WISPHUB_NET_HOST=https://api.wisphub.net
+MAX_ACTIVE_TICKETS_PER_ZONE=3
+```
+
+<Warning>
+Never commit your `.env` file to version control. Add it to your `.gitignore` file.
+</Warning>
+
+## Step 2: Build the Docker Image
+
+Clone the repository and build the Docker image:
+
+```bash
+git clone https://github.com/soporte-ainovapro/wisphub-api.git
+cd wisphub-api
+docker build -t wisphubapi:latest .
+```
+
+The build process will:
+- Use Python 3.12-slim base image
+- Install all dependencies from requirements.txt
+- Create a non-root user for security
+- Configure health checks
+
+## Step 3: Run the Container
+
+Start the API server using Docker:
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest
+```
+
+The API will be available at `http://localhost:8000`
+
+<Info>
+The container runs Gunicorn with 4 Uvicorn workers by default, providing async request handling and automatic worker restart on failures.
+</Info>
+
+## Step 4: Verify Installation
+
+Test the health check endpoint to confirm the API is running:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "action": null,
+  "message": null,
+  "data": {
+    "status": "ok",
+    "service": "WispHub Local API"
+  }
+}
+```
+
+## Step 5: Explore the API
+
+Visit the interactive API documentation to explore all available endpoints:
+
+```
+http://localhost:8000/docs
+```
+
+The Swagger UI provides:
+- Complete endpoint documentation
+- Request/response schemas
+- Interactive API testing
+- Authentication configuration
+
+## Make Your First Request
+
+Try retrieving all clients:
+
+```bash
+curl http://localhost:8000/api/v1/clients/
+```
+
+<Accordion title="Example Response">
+```json
+{
+  "success": true,
+  "action": "clients_listed",
+  "message": null,
+  "data": [
+    {
+      "service_id": 123,
+      "name": "John Doe",
+      "document": "1234567890",
+      "phone": "3001234567",
+      "address": "Calle Principal 123",
+      "zone_id": 1,
+      "internet_plan_name": "Plan Básico 10MB",
+      "internet_plan_price": 35000.0,
+      "status": "active"
+    }
+  ]
+}
+```
+</Accordion>
+
+## Next Steps
+
+Now that you have the API running, explore these topics:
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Learn about the caching system and middleware design
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Explore all available endpoints and schemas
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Understand API key configuration and security
+  </Card>
+  <Card title="Deployment" icon="docker" href="/deployment/docker">
+    Deploy to production with advanced Docker configurations
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Port 8000 is already in use">
+    Change the host port mapping:
+    ```bash
+    docker run -d --name wisphub_api_server -p 8001:8000 --env-file .env wisphubapi:latest
+    ```
+    Access the API at `http://localhost:8001`
+  </Accordion>
+
+  <Accordion title="Container fails to start">
+    Check the logs:
+    ```bash
+    docker logs wisphub_api_server
+    ```
+    Common causes:
+    - Missing or invalid environment variables
+    - Port conflicts
+    - Insufficient Docker resources
+  </Accordion>
+
+  <Accordion title="API returns authentication errors">
+    Verify your `WISPHUB_NET_KEY` in the `.env` file is correct and has the necessary permissions to access WispHub Net endpoints.
+  </Accordion>
+</AccordionGroup>
+
+## Development Mode
+
+For local development with hot-reload, see the [Local Development](/deployment/local-development) guide.

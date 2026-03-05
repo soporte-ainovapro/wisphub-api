@@ -1,0 +1,234 @@
+---
+title: 'Create Ticket'
+description: 'Create a new technical support ticket in WispHub'
+---
+
+## POST /api/v1/tickets
+
+Creates and initializes a new technical support ticket in WispHub. This endpoint performs preventive verification to ensure the zone does not exceed the allowed threshold of open tickets to avoid visit saturation. It also automatically calculates the approximate resolution date based on business days configured in the system.
+
+<Note>
+  The system enforces a zone-level ticket limit. If a zone already has the maximum number of active tickets (default: 3), the request will be rejected with a `zone_ticket_limit_reached` action.
+</Note>
+
+### Request Body
+
+<ParamField body="service_id" type="integer" required>
+  The unique identifier of the service associated with this ticket
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  Brief summary of the ticket issue
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Detailed description of the technical issue or support request
+</ParamField>
+
+<ParamField body="technician_id" type="integer | null" required>
+  ID of the assigned technician. Can be null if not yet assigned
+</ParamField>
+
+<ParamField body="zone_id" type="integer" required>
+  The zone ID where the customer is located. Used to enforce ticket limits per zone
+</ParamField>
+
+### Response
+
+The endpoint returns a `BackendResponse` wrapper with the following structure:
+
+<ResponseField name="ok" type="boolean">
+  Indicates if the request was successful
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Response type: `success`, `error`, or `info`
+</ResponseField>
+
+<ResponseField name="action" type="string">
+  Action identifier for the response. Possible values:
+  - `ticket_created` - Ticket successfully created
+  - `ticket_creation_failed` - Failed to create ticket
+  - `zone_ticket_limit_reached` - Zone has reached maximum active tickets
+</ResponseField>
+
+<ResponseField name="data" type="object | null">
+  Response data object
+  
+  <Expandable title="Success Response (ticket_created)">
+    <ResponseField name="ticket_id" type="integer">
+      Unique identifier of the created ticket
+    </ResponseField>
+    
+    <ResponseField name="subject" type="string">
+      Subject of the ticket
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      Timestamp when the ticket was created (format: "YYYY-MM-DD HH:MM")
+    </ResponseField>
+    
+    <ResponseField name="end_date" type="string | null">
+      Estimated resolution date calculated based on business days (format: "YYYY-MM-DD HH:MM")
+    </ResponseField>
+    
+    <ResponseField name="status_ticket" type="string">
+      Current status of the ticket (e.g., "Abierto")
+    </ResponseField>
+    
+    <ResponseField name="priority" type="string">
+      Priority level assigned to the ticket
+    </ResponseField>
+    
+    <ResponseField name="answer_text" type="string | null">
+      Latest response or resolution note. Null for newly created tickets
+    </ResponseField>
+  </Expandable>
+  
+  <Expandable title="Zone Limit Response (zone_ticket_limit_reached)">
+    <ResponseField name="max_tickets" type="integer">
+      The configured maximum number of active tickets allowed per zone (default: 3)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string | null">
+  Optional message providing additional context
+</ResponseField>
+
+<ResponseField name="meta" type="object | null">
+  Optional metadata
+</ResponseField>
+
+### Zone Blocking Logic
+
+The endpoint implements ticket throttling at the zone level:
+
+- **MAX_ACTIVE_TICKETS_PER_ZONE**: Default value is `3`
+- **ACTIVE_TICKET_STATES**: Tickets in state `1` are considered active
+- If a zone already has 3 or more active tickets, new ticket creation is blocked
+- The system returns an info response with action `zone_ticket_limit_reached`
+
+### Resolution Date Calculation
+
+- **MAX_TICKET_RESOLUTION_DAYS**: Default value is `3` business days
+- The `end_date` field represents the estimated resolution date
+- Calculated by adding business days to the creation timestamp
+- Weekends and holidays are excluded from the calculation
+
+<CodeGroup>
+
+```bash curl
+curl -X POST https://api.wisphub.net/api/v1/tickets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "service_id": 100,
+    "subject": "Falla Masiva",
+    "description": "Cliente reporta intermitencia en el servicio de internet",
+    "technician_id": 5,
+    "zone_id": 2
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.wisphub.net/api/v1/tickets"
+headers = {
+    "Content-Type": "application/json"
+}
+data = {
+    "service_id": 100,
+    "subject": "Falla Masiva",
+    "description": "Cliente reporta intermitencia en el servicio de internet",
+    "technician_id": 5,
+    "zone_id": 2
+}
+
+response = requests.post(url, json=data, headers=headers)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.wisphub.net/api/v1/tickets', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    service_id: 100,
+    subject: 'Falla Masiva',
+    description: 'Cliente reporta intermitencia en el servicio de internet',
+    technician_id: 5,
+    zone_id: 2
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+### Example Responses
+
+<CodeGroup>
+
+```json Success Response
+{
+  "ok": true,
+  "type": "success",
+  "action": "ticket_created",
+  "data": {
+    "ticket_id": 50,
+    "subject": "Falla Masiva",
+    "created_at": "2026-02-26 10:00",
+    "end_date": "2026-02-28 10:00",
+    "status_ticket": "Abierto",
+    "priority": "3",
+    "answer_text": null
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+```json Zone Limit Reached
+{
+  "ok": true,
+  "type": "info",
+  "action": "zone_ticket_limit_reached",
+  "data": {
+    "max_tickets": 3
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+```json Creation Failed
+{
+  "ok": false,
+  "type": "error",
+  "action": "ticket_creation_failed",
+  "data": null,
+  "message": null,
+  "meta": null
+}
+```
+
+</CodeGroup>
+
+### Error Handling
+
+<Warning>
+  Always check the `action` field to determine the outcome:
+  - `ticket_created`: Success - ticket was created
+  - `zone_ticket_limit_reached`: Zone has too many active tickets
+  - `ticket_creation_failed`: An error occurred during creation
+</Warning>
+
+When the zone limit is reached, you should:
+1. Inform the user that the zone has reached maximum capacity
+2. Display the `max_tickets` value from the response
+3. Wait for existing tickets to be resolved before creating new ones

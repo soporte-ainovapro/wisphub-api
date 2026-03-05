@@ -1,0 +1,497 @@
+---
+title: Environment Configuration
+description: Complete guide to configuring environment variables for the WispHub API
+---
+
+# Environment Configuration
+
+The WispHub API uses environment variables for configuration, managed through Pydantic Settings. This approach provides type safety, validation, and flexible configuration sources.
+
+## Configuration File
+
+All configuration is centralized in `app/core/config.py`:
+
+```python app/core/config.py
+from pydantic import Field
+from typing import Tuple
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
+    # WispHub Net API authentication
+    WISPHUB_NET_KEY: str
+    WISPHUB_NET_HOST: str
+
+    # Ticket business rules
+    MAX_ACTIVE_TICKETS_PER_ZONE: int = 3
+    ACTIVE_TICKET_STATES: Tuple[int, ...] = (1,)
+    DEFAULT_TICKET_STATUS: int = 1
+    MAX_TICKET_RESOLUTION_DAYS: int = 3
+
+    @property
+    def TICKETS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/tickets/"
+    
+    @property
+    def CLIENTS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/clientes/"
+    
+    @property
+    def PLANS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/"
+    
+    @property
+    def PLANS_PPPOE_URL(self):
+        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/pppoe/"
+    
+    @property
+    def PLANS_QUEUE_URL(self):
+        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/queue/"
+    
+    @property
+    def TASKS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/tasks/"
+
+settings = Settings()
+```
+
+## Environment Variables
+
+### Required Variables
+
+These variables **must** be set for the API to function:
+
+<Accordion title="WISPHUB_NET_KEY">
+**Type**: `str`
+
+**Purpose**: API key for authenticating with WispHub Net
+
+**Example**: 
+```env
+WISPHUB_NET_KEY=abc123def456ghi789jkl
+```
+
+**Security**: Never commit this to version control. Keep it in `.env` which should be in `.gitignore`.
+
+**Obtaining**: Contact your WispHub administrator to generate an API key with appropriate permissions.
+</Accordion>
+
+<Accordion title="WISPHUB_NET_HOST">
+**Type**: `str` (URL)
+
+**Purpose**: Base URL of your WispHub Net instance
+
+**Example**: 
+```env
+WISPHUB_NET_HOST=https://api.wisphub.net
+```
+
+**Format**: Must include protocol (`https://` or `http://`) and should not have trailing slash.
+
+**Common values**:
+- `https://api.wisphub.net` (official WispHub)
+- `https://yourcompany.wisphub.net` (custom domain)
+- `http://localhost:8080` (local WispHub instance for testing)
+</Accordion>
+
+### Optional Variables (Business Rules)
+
+These variables have sensible defaults but can be customized:
+
+<Accordion title="MAX_ACTIVE_TICKETS_PER_ZONE">
+**Type**: `int`
+
+**Purpose**: Maximum number of active support tickets allowed per zone to prevent technician saturation
+
+**Default**: `3`
+
+**Example**: 
+```env
+MAX_ACTIVE_TICKETS_PER_ZONE=5
+```
+
+**Impact**: When this limit is reached, new ticket creation requests for that zone will be rejected with a `ZONE_LIMIT_REACHED` response.
+
+**Tuning**: Adjust based on:
+- Number of technicians per zone
+- Average ticket resolution time
+- Acceptable customer wait times
+</Accordion>
+
+<Accordion title="ACTIVE_TICKET_STATES">
+**Type**: `Tuple[int, ...]`
+
+**Purpose**: Ticket status IDs considered "active" for zone limit calculations
+
+**Default**: `(1,)` (status ID 1, typically "Open")
+
+**Example**: 
+```env
+ACTIVE_TICKET_STATES=(1,2,3)
+```
+
+**Format**: Comma-separated integers in parentheses
+
+**Common WispHub Status IDs**:
+- `1`: Open
+- `2`: In Progress  
+- `3`: Pending
+- `4`: Resolved
+- `5`: Closed
+
+<Tip>
+Check your WispHub instance's ticket status configuration to match the IDs correctly.
+</Tip>
+</Accordion>
+
+<Accordion title="DEFAULT_TICKET_STATUS">
+**Type**: `int`
+
+**Purpose**: Default status ID assigned to newly created tickets
+
+**Default**: `1` (typically "Open")
+
+**Example**: 
+```env
+DEFAULT_TICKET_STATUS=2
+```
+
+**Usage**: When creating tickets via `POST /api/v1/tickets`, this status is automatically assigned.
+</Accordion>
+
+<Accordion title="MAX_TICKET_RESOLUTION_DAYS">
+**Type**: `int`
+
+**Purpose**: Expected number of business days for ticket resolution
+
+**Default**: `3`
+
+**Example**: 
+```env
+MAX_TICKET_RESOLUTION_DAYS=5
+```
+
+**Usage**: Used to calculate estimated resolution dates when creating tickets. Excludes weekends in the calculation.
+</Accordion>
+
+## .env File Example
+
+Create a `.env` file in the project root:
+
+```env .env
+# WispHub Net Authentication (REQUIRED)
+WISPHUB_NET_KEY=your_api_key_here
+WISPHUB_NET_HOST=https://api.wisphub.net
+
+# Business Rules (OPTIONAL - defaults shown)
+MAX_ACTIVE_TICKETS_PER_ZONE=3
+ACTIVE_TICKET_STATES=(1,)
+DEFAULT_TICKET_STATUS=1
+MAX_TICKET_RESOLUTION_DAYS=3
+```
+
+<Warning>
+Add `.env` to your `.gitignore` file:
+
+```gitignore .gitignore
+.env
+.env.*
+!.env.example
+```
+</Warning>
+
+## Environment-Specific Configuration
+
+### Development Environment
+
+```env .env.development
+WISPHUB_NET_KEY=dev_test_key_12345
+WISPHUB_NET_HOST=http://localhost:8080
+MAX_ACTIVE_TICKETS_PER_ZONE=10
+```
+
+### Production Environment
+
+```env .env.production
+WISPHUB_NET_KEY=prod_secure_key_xyz789abc
+WISPHUB_NET_HOST=https://api.wisphub.net
+MAX_ACTIVE_TICKETS_PER_ZONE=3
+```
+
+Load the appropriate file:
+
+```bash
+# Development
+cp .env.development .env
+
+# Production  
+cp .env.production .env
+```
+
+## Computed Properties
+
+The `Settings` class provides computed URL properties based on `WISPHUB_NET_HOST`:
+
+```python
+# These are automatically constructed
+settings.TICKETS_URL      # {HOST}/api/tickets/
+settings.CLIENTS_URL      # {HOST}/api/clientes/
+settings.PLANS_URL        # {HOST}/api/plan-internet/
+settings.PLANS_PPPOE_URL  # {HOST}/api/plan-internet/pppoe/
+settings.PLANS_QUEUE_URL  # {HOST}/api/plan-internet/queue/
+settings.TASKS_URL        # {HOST}/api/tasks/
+```
+
+You don't need to set these manually - they're derived from `WISPHUB_NET_HOST`.
+
+## Configuration Validation
+
+Pydantic automatically validates configuration on startup:
+
+### Type Checking
+
+```python
+# ✅ Valid
+MAX_ACTIVE_TICKETS_PER_ZONE=5
+
+# ❌ Invalid - will raise ValidationError
+MAX_ACTIVE_TICKETS_PER_ZONE=five
+```
+
+Error:
+```
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+MAX_ACTIVE_TICKETS_PER_ZONE
+  Input should be a valid integer
+```
+
+### Required Field Checking
+
+```python
+# ❌ Missing WISPHUB_NET_KEY
+```
+
+Error:
+```
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+WISPHUB_NET_KEY
+  Field required
+```
+
+## Using Settings in Code
+
+Import and use the global `settings` instance:
+
+```python
+from app.core.config import settings
+
+# Access configuration
+api_key = settings.WISPHUB_NET_KEY
+max_tickets = settings.MAX_ACTIVE_TICKETS_PER_ZONE
+
+# Use computed URLs
+url = settings.CLIENTS_URL  # https://api.wisphub.net/api/clientes/
+```
+
+## Docker Configuration
+
+### Using --env-file
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest
+```
+
+### Using -e flags
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  -e WISPHUB_NET_KEY=abc123 \
+  -e WISPHUB_NET_HOST=https://api.wisphub.net \
+  -e MAX_ACTIVE_TICKETS_PER_ZONE=5 \
+  wisphubapi:latest
+```
+
+### Docker Compose
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  wisphub-api:
+    image: wisphubapi:latest
+    env_file:
+      - .env
+    environment:
+      MAX_ACTIVE_TICKETS_PER_ZONE: 5
+    ports:
+      - "8000:8000"
+```
+
+<Info>
+Environment variables defined in the `environment` section override those from `env_file`.
+</Info>
+
+## Kubernetes Configuration
+
+For Kubernetes deployments, use ConfigMaps and Secrets:
+
+### Secret (for sensitive data)
+
+```yaml wisphub-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wisphub-api-secret
+type: Opaque
+stringData:
+  WISPHUB_NET_KEY: "your_api_key_here"
+```
+
+### ConfigMap (for non-sensitive data)
+
+```yaml wisphub-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wisphub-api-config
+data:
+  WISPHUB_NET_HOST: "https://api.wisphub.net"
+  MAX_ACTIVE_TICKETS_PER_ZONE: "3"
+  MAX_TICKET_RESOLUTION_DAYS: "3"
+```
+
+### Deployment
+
+```yaml deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wisphub-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: api
+        image: wisphubapi:latest
+        envFrom:
+        - configMapRef:
+            name: wisphub-api-config
+        - secretRef:
+            name: wisphub-api-secret
+```
+
+## Troubleshooting
+
+### Issue: "Field required" error
+
+**Cause**: Missing required environment variable
+
+**Solution**: Ensure `.env` file exists and contains all required variables:
+
+```bash
+# Check file exists
+ls -la .env
+
+# Verify contents
+cat .env | grep WISPHUB_NET_KEY
+```
+
+### Issue: "Input should be a valid integer"
+
+**Cause**: Type mismatch (e.g., string instead of integer)
+
+**Solution**: Remove quotes from numeric values:
+
+```env
+# ❌ Wrong
+MAX_ACTIVE_TICKETS_PER_ZONE="3"
+
+# ✅ Correct
+MAX_ACTIVE_TICKETS_PER_ZONE=3
+```
+
+### Issue: Configuration not loading in Docker
+
+**Cause**: `.env` file not mounted or environment not passed
+
+**Solution**: Verify environment is being passed:
+
+```bash
+# Check environment inside container
+docker exec wisphub_api_server env | grep WISPHUB
+```
+
+### Issue: Case sensitivity problems
+
+**Cause**: Environment variable names must match exactly (case-sensitive)
+
+**Solution**: Use uppercase for all variables:
+
+```env
+# ❌ Wrong
+wisphub_net_key=abc123
+
+# ✅ Correct  
+WISPHUB_NET_KEY=abc123
+```
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Never Commit Secrets">
+    Add `.env` to `.gitignore` before committing:
+    
+    ```bash
+    echo ".env" >> .gitignore
+    git add .gitignore
+    git commit -m "Add .env to gitignore"
+    ```
+  </Step>
+  
+  <Step title="Use .env.example">
+    Create a template without sensitive values:
+    
+    ```env .env.example
+    WISPHUB_NET_KEY=your_api_key_here
+    WISPHUB_NET_HOST=https://api.wisphub.net
+    MAX_ACTIVE_TICKETS_PER_ZONE=3
+    ```
+    
+    Commit this to version control as a reference.
+  </Step>
+  
+  <Step title="Restrict File Permissions">
+    ```bash
+    chmod 600 .env
+    ```
+    
+    This makes the file readable only by the owner.
+  </Step>
+  
+  <Step title="Use Secrets Management in Production">
+    For production:
+    - **Docker**: Docker secrets
+    - **Kubernetes**: Kubernetes secrets
+    - **Cloud**: AWS Secrets Manager, Azure Key Vault, GCP Secret Manager
+  </Step>
+</Steps>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Details about API key authentication
+  </Card>
+  
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Deploying with environment configuration
+  </Card>
+</CardGroup>

@@ -1,0 +1,566 @@
+---
+title: Testing Overview
+description: Comprehensive testing strategy for the WispHub API using pytest, pytest-asyncio, and respx for mocking
+---
+
+# Testing Overview
+
+The WispHub API implements a comprehensive testing strategy to ensure stability, correctness, and deterministic behavior. This page covers the testing infrastructure, methodologies, and best practices.
+
+## Testing Philosophy
+
+<Info>
+The codebase is governed by comprehensive testing standards to ensure stability and deterministic behavioral outcomes.
+</Info>
+
+Key principles:
+
+1. **Isolation**: Tests don't depend on external WispHub Net API
+2. **Fast execution**: Mocked HTTP calls ensure sub-second test runs
+3. **Comprehensive coverage**: Unit, integration, and load testing
+4. **Async-first**: Native async/await testing with pytest-asyncio
+
+## Testing Stack
+
+### Core Testing Libraries
+
+```txt requirements-dev.txt
+locust==2.43.3          # Load testing framework
+pytest==9.0.2           # Testing framework
+pytest-asyncio==1.3.0   # Async test support
+respx==0.22.0           # HTTP mocking for httpx
+async-lru==2.2.0        # Cache implementation (also in main deps)
+```
+
+<Accordion title="pytest">
+**Purpose**: Core testing framework
+
+**Features**:
+- Automatic test discovery
+- Powerful assertion introspection
+- Fixture-based setup/teardown
+- Parameterized testing
+
+**Version**: 9.0.2
+</Accordion>
+
+<Accordion title="pytest-asyncio">
+**Purpose**: Enables testing of async functions
+
+**Features**:
+- `@pytest.mark.asyncio` decorator
+- Async fixture support
+- Event loop management
+
+**Configuration** (in `pytest.ini`):
+```ini
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+```
+
+**Version**: 1.3.0
+</Accordion>
+
+<Accordion title="respx">
+**Purpose**: Mock HTTP requests made by `httpx`
+
+**Why not requests-mock?**: WispHub API uses `httpx` (async), not `requests`
+
+**Features**:
+- Route-based mocking
+- Request pattern matching
+- Response mocking
+- Async support
+
+**Version**: 0.22.0
+</Accordion>
+
+<Accordion title="locust">
+**Purpose**: Load and stress testing
+
+**Features**:
+- Simulate concurrent users
+- Web-based UI
+- Real-time statistics
+- Distributed testing
+
+See [Load Testing](/testing/load-testing) for details.
+
+**Version**: 2.43.3
+</Accordion>
+
+## Test Configuration
+
+### pytest.ini
+
+```ini pytest.ini
+[pytest]
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+pythonpath = .
+```
+
+**Settings explained**:
+
+- `asyncio_mode = auto`: Automatically detect and run async tests
+- `asyncio_default_fixture_loop_scope = function`: Create new event loop per test
+- `pythonpath = .`: Add project root to Python path
+
+### Test Directory Structure
+
+```
+tests/
+├── __init__.py
+├── conftest.py              # Shared fixtures and configuration
+├── api/                     # API endpoint tests (integration)
+│   ├── __init__.py
+│   ├── test_clients.py      # Client endpoint tests
+│   ├── test_tickets.py      # Ticket endpoint tests
+│   ├── test_internet_plans.py  # Plan endpoint tests
+│   └── test_network.py      # Network endpoint tests
+├── services/                # Service layer tests (unit)
+│   ├── __init__.py
+│   ├── test_clients_service.py
+│   ├── test_tickets_service.py
+│   ├── test_internet_plans_service.py
+│   └── test_network_service.py
+└── utils/                   # Utility function tests
+    ├── __init__.py
+    ├── test_utils.py
+    └── test_responses.py
+```
+
+## Shared Fixtures
+
+The `conftest.py` file provides fixtures available to all tests:
+
+```python tests/conftest.py
+import pytest
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
+from app.main import app
+
+@pytest_asyncio.fixture
+async def async_client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+```
+
+**Key fixture**: `async_client`
+
+- **Purpose**: Provides an async HTTP client for testing endpoints
+- **Type**: `httpx.AsyncClient`
+- **Transport**: ASGI (in-memory, no network calls)
+- **Base URL**: `http://testserver`
+
+**Usage in tests**:
+
+```python
+@pytest.mark.asyncio
+async def test_health_endpoint(async_client):
+    response = await async_client.get("/health")
+    assert response.status_code == 200
+```
+
+## Unit Testing
+
+Unit tests focus on individual functions and services in isolation.
+
+### Example: Testing Client Service
+
+```python tests/services/test_clients_service.py
+import pytest
+from unittest.mock import patch, AsyncMock
+import httpx
+from app.services.clients_service import get_client_by_document
+
+@pytest.mark.asyncio
+@patch('app.services.clients_service.httpx.AsyncClient')
+async def test_get_client_by_document_success(mock_client):
+    # Setup mock
+    mock_response = AsyncMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "results": [{
+            "id_servicio": 1,
+            "nombre": "John Doe",
+            "cedula": "12345678",
+            # ... other fields
+        }]
+    }
+    
+    mock_client.return_value.__aenter__.return_value.get = AsyncMock(
+        return_value=mock_response
+    )
+    
+    # Execute
+    result = await get_client_by_document("12345678")
+    
+    # Assert
+    assert result is not None
+    assert result.document == "12345678"
+    assert result.name == "John Doe"
+```
+
+### Mocking Strategy
+
+For unit tests, mock at the service layer:
+
+```python
+# Mock the service function, not the HTTP client
+@patch("app.api.v1.clients.get_client_by_document")
+async def test_endpoint(mock_get_client, async_client):
+    mock_get_client.return_value = MOCK_CLIENT
+    # Test endpoint...
+```
+
+This isolates the routing layer from business logic.
+
+## Integration Testing
+
+Integration tests verify that API endpoints work correctly end-to-end.
+
+### Example: Testing Client Endpoints
+
+```python tests/api/test_clients.py
+import pytest
+from unittest.mock import patch
+from app.schemas.clients import ClientResponse
+from app.schemas.responses.response_actions import ClientAction
+
+MOCK_API_CLIENT = ClientResponse(
+    service_id=1,
+    name="John Doe",
+    document="111111",
+    phone="333",
+    address="Some Address",
+    city="City",
+    locality="Locality",
+    payment_status="Al dia",
+    zone_id=1,
+    antenna_ip="1.1.1.1",
+    cut_off_date="2026-01-01",
+    outstanding_balance=0,
+    lan_interface="eth1",
+    internet_plan_name="Plan 1",
+    internet_plan_price=40000.0,
+    technician_id=1
+)
+
+@pytest.mark.asyncio
+@patch("app.api.v1.clients.get_client_by_document")
+async def test_get_client_by_document_endpoint_found(mock_get_client, async_client):
+    mock_get_client.return_value = MOCK_API_CLIENT
+    
+    response = await async_client.get("/api/v1/clients/by-document/111111")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["ok"] is True
+    assert data["action"] == ClientAction.FOUND
+    assert data["data"]["name"] == "John Doe"
+```
+
+### Testing Error Cases
+
+```python
+@pytest.mark.asyncio
+@patch("app.api.v1.clients.get_client_by_document")
+async def test_get_client_by_document_endpoint_not_found(mock_get_client, async_client):
+    mock_get_client.return_value = None
+    
+    response = await async_client.get("/api/v1/clients/by-document/111111")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert data["ok"] is True
+    assert data["action"] == ClientAction.NOT_FOUND
+    assert data["data"] is None
+```
+
+## HTTP Mocking with respx
+
+For tests that need to mock external HTTP calls to WispHub Net:
+
+```python
+import respx
+import httpx
+from app.services.clients_service import get_clients
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_clients_with_http_mock():
+    # Mock the WispHub Net API endpoint
+    respx.get("https://api.wisphub.net/api/clientes/").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "results": [
+                    {
+                        "id_servicio": 1,
+                        "nombre": "Test Client",
+                        "cedula": "12345",
+                        # ... other fields
+                    }
+                ],
+                "next": None  # No pagination
+            }
+        )
+    )
+    
+    # Call the service
+    clients = await get_clients()
+    
+    # Assert
+    assert len(clients) == 1
+    assert clients[0].name == "Test Client"
+```
+
+### respx Pattern Matching
+
+```python
+# Match by URL pattern
+respx.get(url__regex=r".*/api/clientes/.*")
+
+# Match by query params
+respx.get("https://api.wisphub.net/api/clientes/", params={"cedula": "12345"})
+
+# Match any GET request
+respx.get(url__startswith="https://api.wisphub.net/")
+```
+
+## Running Tests
+
+### Run All Tests
+
+```bash
+pytest tests/ -v
+```
+
+Expected output:
+```
+tests/api/test_clients.py::test_get_client_by_document_endpoint_found PASSED
+tests/api/test_clients.py::test_get_client_by_document_endpoint_not_found PASSED
+tests/api/test_clients.py::test_get_clients_endpoint_success PASSED
+...
+========================= 25 passed in 2.34s =========================
+```
+
+### Run Specific Test File
+
+```bash
+pytest tests/api/test_clients.py -v
+```
+
+### Run Specific Test
+
+```bash
+pytest tests/api/test_clients.py::test_get_client_by_document_endpoint_found -v
+```
+
+### Run with Coverage
+
+```bash
+pip install pytest-cov
+pytest tests/ --cov=app --cov-report=html
+```
+
+View coverage report:
+```bash
+open htmlcov/index.html
+```
+
+### Run with Output
+
+```bash
+pytest tests/ -v -s
+```
+
+`-s` flag shows print statements and logging output.
+
+## Test Parameterization
+
+Test multiple scenarios with a single test function:
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("document,expected_name", [
+    ("111111", "John Doe"),
+    ("222222", "Jane Smith"),
+    ("333333", "Bob Johnson"),
+])
+@patch("app.api.v1.clients.get_client_by_document")
+async def test_multiple_clients(mock_get, document, expected_name, async_client):
+    mock_client = ClientResponse(
+        service_id=1,
+        name=expected_name,
+        document=document,
+        # ... other fields
+    )
+    mock_get.return_value = mock_client
+    
+    response = await async_client.get(f"/api/v1/clients/by-document/{document}")
+    data = response.json()
+    
+    assert data["data"]["name"] == expected_name
+```
+
+## Continuous Integration
+
+Example GitHub Actions workflow:
+
+```yaml .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=app --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Mock External APIs" icon="network-wired">
+    Always mock WispHub Net calls to ensure tests run without network dependency
+  </Card>
+  
+  <Card title="Test Error Paths" icon="triangle-exclamation">
+    Don't just test happy paths - verify error handling and edge cases
+  </Card>
+  
+  <Card title="Use Fixtures" icon="puzzle-piece">
+    Share test data and setup via pytest fixtures to reduce duplication
+  </Card>
+  
+  <Card title="Async All The Way" icon="bolt">
+    Use `@pytest.mark.asyncio` and `async def` for all async code tests
+  </Card>
+</CardGroup>
+
+## Common Testing Patterns
+
+### Testing Cached Functions
+
+```python
+from app.services.clients_service import get_clients
+
+@pytest.mark.asyncio
+async def test_caching():
+    # Clear cache before test
+    get_clients.cache_clear()
+    
+    # First call - cache miss
+    result1 = await get_clients()
+    
+    # Second call - cache hit (same result)
+    result2 = await get_clients()
+    
+    assert result1 == result2
+```
+
+### Testing Pydantic Validation
+
+```python
+from pydantic import ValidationError
+from app.schemas.clients import ClientUpdateRequest
+
+def test_client_update_validation():
+    # Valid data
+    valid_data = {"phone": "1234567890"}
+    request = ClientUpdateRequest(**valid_data)
+    assert request.phone == "1234567890"
+    
+    # Invalid data
+    with pytest.raises(ValidationError):
+        ClientUpdateRequest(phone=12345)  # Should be string, not int
+```
+
+### Testing Exception Handlers
+
+```python
+@pytest.mark.asyncio
+async def test_validation_error_handler(async_client):
+    # Send invalid data
+    response = await async_client.post(
+        "/api/v1/clients/1/verify",
+        json={"name": 123}  # Should be string
+    )
+    
+    assert response.status_code == 422
+    data = response.json()
+    assert data["ok"] is False
+    assert "validación" in data["message"].lower()
+```
+
+## Troubleshooting Tests
+
+### Issue: "RuntimeError: Event loop is closed"
+
+**Cause**: Async event loop issues
+
+**Solution**: Ensure `pytest.ini` has correct async configuration:
+```ini
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+```
+
+### Issue: Tests pass individually but fail together
+
+**Cause**: Shared state or cache pollution
+
+**Solution**: Clear caches between tests:
+```python
+@pytest.fixture(autouse=True)
+async def clear_caches():
+    from app.services.clients_service import get_clients
+    from app.services.internet_plans_service import list_internet_plans
+    
+    get_clients.cache_clear()
+    list_internet_plans.cache_clear()
+    yield
+```
+
+### Issue: "fixture 'async_client' not found"
+
+**Cause**: `conftest.py` not being loaded
+
+**Solution**: Ensure `__init__.py` files exist in test directories
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Load Testing" icon="chart-line" href="/testing/load-testing">
+    Learn about performance and stress testing with Locust
+  </Card>
+  
+  <Card title="Local Development" icon="code" href="/deployment/local-development">
+    Set up your development environment
+  </Card>
+</CardGroup>

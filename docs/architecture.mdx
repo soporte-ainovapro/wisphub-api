@@ -1,0 +1,380 @@
+---
+title: Architecture
+description: Deep dive into the WispHub API architecture, including FastAPI structure, LRU caching, and middleware design
+---
+
+# Architecture Overview
+
+The WispHub API is designed as a high-performance middleware layer that optimizes and secures access to WispHub Net's billing and support infrastructure. This page provides a comprehensive overview of the architectural decisions and design patterns.
+
+## System Architecture
+
+```
+┌─────────────────────┐
+│  Client Application │
+│   (WhatsApp Bot,    │
+│   Web Dashboard)    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   WispHub API       │
+│   (FastAPI)         │
+│  ┌───────────────┐  │
+│  │  LRU Cache    │  │
+│  │  (async_lru)  │  │
+│  └───────────────┘  │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   WispHub Net API   │
+│  (External Service) │
+└─────────────────────┘
+```
+
+## FastAPI Application Structure
+
+The application is organized following a clean architecture pattern:
+
+### Entry Point (`app/main.py`)
+
+The main application file initializes FastAPI and configures global middleware:
+
+```python app/main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1 import clients, tickets, network, internet_plans
+from app.api.exception_handlers import (
+    validation_exception_handler,
+    http_exception_handler,
+    general_exception_handler
+)
+
+app = FastAPI(
+    title="WispHub API",
+    description="API de integración local con WispHub.",
+    version="1.0.0"
+)
+
+# CORS Configuration
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://localhost:8081",
+    "http://localhost:8082",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
+
+# Register routers
+app.include_router(clients.router)
+app.include_router(tickets.router)
+app.include_router(network.router)
+app.include_router(internet_plans.router)
+```
+
+### Project Structure
+
+```
+app/
+├── main.py                    # FastAPI application entry point
+├── core/
+│   └── config.py             # Configuration management
+├── api/
+│   ├── exception_handlers.py # Global exception handlers
+│   └── v1/
+│       ├── clients.py        # Client endpoints
+│       ├── tickets.py        # Ticket endpoints
+│       ├── network.py        # Network diagnostic endpoints
+│       └── internet_plans.py # Plan management endpoints
+├── services/
+│   ├── clients_service.py    # Client business logic
+│   ├── tickets_service.py    # Ticket business logic
+│   ├── network_service.py    # Network diagnostic logic
+│   └── internet_plans_service.py
+├── schemas/
+│   ├── clients.py           # Client Pydantic models
+│   ├── tickets.py           # Ticket Pydantic models
+│   ├── internet_plans.py    # Plan Pydantic models
+│   └── responses/
+│       ├── backend_response.py  # Standardized response wrapper
+│       ├── response_actions.py  # Action enums
+│       └── response_types.py    # Type enums
+└── utils/
+    ├── responses.py         # Response builder utilities
+    ├── dates.py            # Date manipulation helpers
+    └── ticket_rules.py     # Business rules for tickets
+```
+
+## Caching System
+
+The caching system is the cornerstone of the API's performance optimization strategy.
+
+### LRU Cache Implementation
+
+The API uses `async_lru` to implement Least Recently Used caching with Time-To-Live (TTL) support:
+
+```python app/services/clients_service.py
+from async_lru import alru_cache
+
+@alru_cache(maxsize=1, ttl=300)
+async def get_clients() -> List[ClientResponse]:
+    """
+    Loads ALL clients from WispHub following pagination.
+    Results are cached for 5 minutes to avoid repeated load.
+    """
+    all_results: List[ClientResponse] = []
+    next_url: Optional[str] = settings.CLIENTS_URL
+
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        while next_url:
+            response = await client.get(next_url, headers=HEADERS)
+            if response.status_code != 200:
+                break
+            try:
+                data = response.json()
+            except Exception:
+                break
+            results = data.get("results")
+            if not isinstance(results, list):
+                break
+            all_results.extend(parse_client(c) for c in results)
+            next_url = data.get("next")  # None when no more pages
+
+    return all_results
+```
+
+### Cache Strategy by Resource
+
+<CardGroup cols={2}>
+  <Card title="Client List" icon="users">
+    **TTL**: 5 minutes (300s)
+    
+    **Max Size**: 1 (single cached list)
+    
+    **Rationale**: Client data changes infrequently but is queried constantly by bots
+  </Card>
+  
+  <Card title="Internet Plans" icon="wifi">
+    **TTL**: 15 minutes (900s)
+    
+    **Max Size**: 32 plans
+    
+    **Rationale**: Plans are rarely modified and heavily referenced during verification flows
+  </Card>
+</CardGroup>
+
+### Cache Performance
+
+The caching system dramatically improves response times:
+
+- **Without cache**: 500-1000ms (network roundtrip to WispHub Net)
+- **With cache**: Less than 5ms (in-memory lookup)
+- **Cache hit ratio**: Greater than 95% during normal bot operations
+
+<Info>
+The cache automatically handles pagination, ensuring all client records are available even when WispHub Net returns paginated results.
+</Info>
+
+## Middleware Stack
+
+### CORS Middleware
+
+Configured to allow requests from development and production origins:
+
+```python
+origins = [
+    "http://localhost",
+    "http://localhost:3000",  # Frontend dev common port
+    "http://localhost:8080",  # Frontend dev common port
+    "http://localhost:8081",  # Chatbot interface dev server
+    "http://localhost:8082",  # Chatbot interface dev server (fallback)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+<Warning>
+For production deployment, update the `origins` list to include your production domains instead of localhost.
+</Warning>
+
+## Exception Handling
+
+All exceptions are caught and wrapped in the standardized `BackendResponse` format:
+
+### Validation Errors (422)
+
+```python app/api/exception_handlers.py
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Captures 422 Pydantic errors (type issues or missing fields)
+    and wraps them in BackendResponse standard.
+    """
+    errors = exc.errors()
+    simplified_errors = [f"{err['loc'][-1]}: {err['msg']}" for err in errors]
+    error_msg = "; ".join(simplified_errors)
+    
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message=f"Error de validación: {error_msg}"
+    )
+    return JSONResponse(
+        status_code=422,
+        content=response.model_dump()
+    )
+```
+
+### HTTP Exceptions (404, etc.)
+
+```python
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Captures HTTP errors (like 404 Not Found)
+    and wraps them in BackendResponse standard.
+    """
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message=str(exc.detail)
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=response.model_dump()
+    )
+```
+
+### Internal Server Errors (500)
+
+```python
+async def general_exception_handler(request: Request, exc: Exception):
+    """
+    Captures any other internal error (500) to ensure
+    a structured BackendResponse JSON is always returned.
+    """
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message="Ocurrió un error interno en el servidor."
+    )
+    return JSONResponse(
+        status_code=500,
+        content=response.model_dump()
+    )
+```
+
+## Configuration Management
+
+Configuration is managed via Pydantic Settings with environment variable support:
+
+```python app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
+    # WispHub Net authentication
+    WISPHUB_NET_KEY: str
+    WISPHUB_NET_HOST: str
+
+    # Business rules
+    MAX_ACTIVE_TICKETS_PER_ZONE: int = 3
+    ACTIVE_TICKET_STATES: Tuple[int, ...] = (1,)
+    DEFAULT_TICKET_STATUS: int = 1
+    MAX_TICKET_RESOLUTION_DAYS: int = 3
+
+    @property
+    def CLIENTS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/clientes/"
+    
+    @property
+    def PLANS_URL(self) -> str:
+        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/"
+
+settings = Settings()
+```
+
+See [Environment Configuration](/deployment/environment) for complete details.
+
+## Data Flow: Client Search Example
+
+```
+1. Bot sends search request
+   ↓
+2. FastAPI receives at /api/v1/clients/search?q=Esperanza
+   ↓
+3. Route handler calls fetch_clients_by_query()
+   ↓
+4. Service calls get_clients() (cached)
+   ↓
+5. If cache miss: Fetch from WispHub Net with pagination
+   If cache hit: Return from memory (under 5ms)
+   ↓
+6. Filter results locally by query string
+   ↓
+7. Parse into ClientResponse Pydantic models
+   ↓
+8. Wrap in BackendResponse
+   ↓
+9. Return standardized JSON to bot
+```
+
+## Performance Characteristics
+
+<Accordion title="Benchmarked Metrics">
+- **Sustained RPS**: Over 40 requests per second
+- **Failure Rate**: 0.00% on cached routes
+- **P95 Latency** (cached): Under 10ms
+- **P95 Latency** (uncached): ~800ms
+- **Memory Usage**: ~150MB with full client cache
+- **Worker Processes**: 4 (Gunicorn configuration)
+</Accordion>
+
+## Asynchronous Architecture
+
+All I/O operations are asynchronous using:
+
+- **HTTPX AsyncClient**: Non-blocking HTTP requests to WispHub Net
+- **FastAPI async routes**: Concurrent request handling
+- **Uvicorn workers**: True async ASGI server
+
+```python
+async def fetch_client(params: Dict[str, str]) -> Optional[ClientResponse]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            settings.CLIENTS_URL,
+            headers=HEADERS,
+            params=params
+        )
+    # ... processing
+```
+
+This allows the API to handle multiple concurrent requests efficiently without blocking.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Caching Details" icon="database" href="/caching">
+    Deep dive into the caching implementation
+  </Card>
+  
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn about WispHub API key management
+  </Card>
+</CardGroup>

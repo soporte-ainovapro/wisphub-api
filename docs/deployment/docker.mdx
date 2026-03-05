@@ -1,0 +1,516 @@
+---
+title: Docker Deployment
+description: Production-ready Docker deployment guide for the WispHub API with Gunicorn and Uvicorn workers
+---
+
+# Docker Deployment
+
+The WispHub API is designed for containerized deployment using Docker. This page covers production deployment using the provided Dockerfile and best practices for running the API in Docker.
+
+## Dockerfile Overview
+
+The production Dockerfile uses a multi-layered approach optimized for security and performance:
+
+```dockerfile Dockerfile
+FROM python:3.12-slim
+
+# Prevent Python from generating .pyc bytecode files
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Disable output buffering to see logs in real-time in Docker
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all content
+COPY . .
+
+# For security, create and use a non-root user
+RUN adduser -u 5678 --disabled-password --gecos "" wisphub && chown -R wisphub /app
+USER wisphub
+
+# Expose the port
+EXPOSE 8000
+
+# Add a Health Check so Docker knows if the API is blocked
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start Gunicorn with Uvicorn Workers for Production environment
+CMD ["gunicorn", "app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+```
+
+## Key Dockerfile Features
+
+<Steps>
+  <Step title="Python 3.12 Slim Base">
+    Uses the official Python 3.12 slim image for a smaller footprint:
+    
+    - **Standard Python image**: ~900MB
+    - **Slim image**: ~150MB
+    - **Benefit**: Faster pulls, smaller attack surface
+  </Step>
+  
+  <Step title="Environment Optimization">
+    Two critical environment variables:
+    
+    ```dockerfile
+    ENV PYTHONDONTWRITEBYTECODE=1
+    ENV PYTHONUNBUFFERED=1
+    ```
+    
+    - `PYTHONDONTWRITEBYTECODE`: Prevents `.pyc` file generation (cleaner container)
+    - `PYTHONUNBUFFERED`: Ensures logs appear immediately in Docker logs
+  </Step>
+  
+  <Step title="Non-Root User">
+    Security best practice - runs as user `wisphub` (UID 5678):
+    
+    ```dockerfile
+    RUN adduser -u 5678 --disabled-password --gecos "" wisphub && chown -R wisphub /app
+    USER wisphub
+    ```
+    
+    This prevents privilege escalation attacks.
+  </Step>
+  
+  <Step title="Health Check">
+    Docker can automatically detect if the API becomes unresponsive:
+    
+    ```dockerfile
+    HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+        CMD curl -f http://localhost:8000/health || exit 1
+    ```
+    
+    - Checks every 30 seconds
+    - 5-second grace period on startup
+    - Marks unhealthy after 3 failed checks
+  </Step>
+  
+  <Step title="Gunicorn + Uvicorn">
+    Production server configuration:
+    
+    ```dockerfile
+    CMD ["gunicorn", "app.main:app", "--workers", "4", 
+         "--worker-class", "uvicorn.workers.UvicornWorker", 
+         "--bind", "0.0.0.0:8000"]
+    ```
+    
+    - **Gunicorn**: Process manager for worker orchestration
+    - **Uvicorn workers**: ASGI server for async FastAPI
+    - **4 workers**: Optimal for typical CPU configurations
+  </Step>
+</Steps>
+
+## Building the Image
+
+### Basic Build
+
+```bash
+docker build -t wisphubapi:latest .
+```
+
+### Build with Version Tag
+
+```bash
+VERSION=1.0.0
+docker build -t wisphubapi:${VERSION} -t wisphubapi:latest .
+```
+
+### Build for Multiple Platforms
+
+For deployment across different architectures:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t wisphubapi:latest \
+  --push \
+  .
+```
+
+<Info>
+This creates images for both x86_64 (amd64) and ARM64 architectures, useful for cloud deployments and ARM-based servers.
+</Info>
+
+## Running the Container
+
+### Development Mode
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest
+```
+
+### Production Mode with Restart Policy
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  --restart unless-stopped \
+  --memory="512m" \
+  --cpus="2" \
+  wisphubapi:latest
+```
+
+Restart policies:
+- `no`: Never restart (default)
+- `on-failure`: Restart only if container exits with error
+- `always`: Always restart
+- `unless-stopped`: Always restart unless manually stopped
+
+<Warning>
+For production, always use `--restart unless-stopped` or `--restart always` to ensure high availability.
+</Warning>
+
+## Docker Compose
+
+For easier orchestration, use Docker Compose:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  wisphub-api:
+    build: .
+    image: wisphubapi:latest
+    container_name: wisphub_api_server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '1'
+          memory: 256M
+    networks:
+      - wisphub-network
+
+networks:
+  wisphub-network:
+    driver: bridge
+```
+
+### Using Docker Compose
+
+```bash
+# Build and start
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f wisphub-api
+
+# Stop
+docker-compose down
+
+# Restart
+docker-compose restart wisphub-api
+```
+
+## Worker Configuration
+
+The number of Gunicorn workers can be configured based on your server's resources.
+
+### Recommended Worker Count
+
+```
+workers = (2 × CPU_cores) + 1
+```
+
+Examples:
+- **2 CPU cores**: 5 workers
+- **4 CPU cores**: 9 workers
+- **8 CPU cores**: 17 workers
+
+### Custom Worker Count via Environment
+
+Modify the Dockerfile CMD or override at runtime:
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest \
+  gunicorn app.main:app \
+    --workers 8 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000
+```
+
+<Tip>
+Monitor CPU usage and adjust worker count accordingly. More workers don't always mean better performance due to Python's GIL.
+</Tip>
+
+## Logging
+
+### View Container Logs
+
+```bash
+# All logs
+docker logs wisphub_api_server
+
+# Follow logs in real-time
+docker logs -f wisphub_api_server
+
+# Last 100 lines
+docker logs --tail 100 wisphub_api_server
+
+# Logs since specific time
+docker logs --since 2024-01-01T00:00:00 wisphub_api_server
+```
+
+### Log Format
+
+Gunicorn produces structured logs:
+
+```
+[2024-03-04 10:15:23 +0000] [1] [INFO] Starting gunicorn 21.2.0
+[2024-03-04 10:15:23 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2024-03-04 10:15:23 +0000] [1] [INFO] Using worker: uvicorn.workers.UvicornWorker
+[2024-03-04 10:15:23 +0000] [8] [INFO] Booting worker with pid: 8
+[2024-03-04 10:15:23 +0000] [9] [INFO] Booting worker with pid: 9
+```
+
+### Centralized Logging
+
+For production, send logs to a centralized system:
+
+```bash
+# Using Docker logging driver
+docker run -d \
+  --name wisphub_api_server \
+  --log-driver=syslog \
+  --log-opt syslog-address=tcp://192.168.1.10:514 \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest
+```
+
+## Health Monitoring
+
+### Check Health Status
+
+```bash
+docker inspect --format='{{json .State.Health}}' wisphub_api_server | jq
+```
+
+Output:
+```json
+{
+  "Status": "healthy",
+  "FailingStreak": 0,
+  "Log": [
+    {
+      "Start": "2024-03-04T10:15:53Z",
+      "End": "2024-03-04T10:15:53Z",
+      "ExitCode": 0,
+      "Output": ""
+    }
+  ]
+}
+```
+
+### Manual Health Check
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": null,
+  "data": {
+    "status": "ok",
+    "service": "WispHub Local API"
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+## Performance Tuning
+
+### Resource Limits
+
+Set appropriate resource limits to prevent resource exhaustion:
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  --memory="512m" \
+  --memory-swap="1g" \
+  --cpus="2" \
+  --pids-limit=200 \
+  wisphubapi:latest
+```
+
+### Gunicorn Timeout
+
+For slow upstream responses from WispHub Net:
+
+```bash
+docker run -d \
+  --name wisphub_api_server \
+  -p 8000:8000 \
+  --env-file .env \
+  wisphubapi:latest \
+  gunicorn app.main:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000 \
+    --timeout 60 \
+    --graceful-timeout 30
+```
+
+## Security Considerations
+
+<Steps>
+  <Step title="Use Non-Root User">
+    Already implemented in the Dockerfile (user `wisphub`)
+  </Step>
+  
+  <Step title="Scan for Vulnerabilities">
+    Regularly scan the image:
+    
+    ```bash
+    docker scan wisphubapi:latest
+    ```
+  </Step>
+  
+  <Step title="Keep Base Image Updated">
+    Rebuild regularly with latest `python:3.12-slim`:
+    
+    ```bash
+    docker pull python:3.12-slim
+    docker build --no-cache -t wisphubapi:latest .
+    ```
+  </Step>
+  
+  <Step title="Use Read-Only Filesystem">
+    For extra security:
+    
+    ```bash
+    docker run -d \
+      --name wisphub_api_server \
+      --read-only \
+      --tmpfs /tmp \
+      -p 8000:8000 \
+      --env-file .env \
+      wisphubapi:latest
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Container Won't Start
+
+**Check logs**:
+```bash
+docker logs wisphub_api_server
+```
+
+Common causes:
+- Missing `.env` file
+- Invalid environment variables
+- Port 8000 already in use
+
+**Solution**: Verify environment configuration and port availability.
+
+### High Memory Usage
+
+**Monitor resource usage**:
+```bash
+docker stats wisphub_api_server
+```
+
+**Solution**: Reduce worker count or increase container memory limit.
+
+### Health Check Failing
+
+**View health check logs**:
+```bash
+docker inspect wisphub_api_server | jq '.[0].State.Health'
+```
+
+**Common causes**:
+- API not fully started (wait for `start_period`)
+- Gunicorn workers crashed
+- Missing `curl` in container (already included in python:3.12-slim)
+
+## Production Deployment Checklist
+
+<Steps>
+  <Step title="Environment Configuration">
+    - [ ] `.env` file configured with production credentials
+    - [ ] All required environment variables set
+    - [ ] Secrets properly secured (not in version control)
+  </Step>
+  
+  <Step title="Resource Configuration">
+    - [ ] Worker count optimized for CPU cores
+    - [ ] Memory limits set appropriately
+    - [ ] CPU limits configured
+    - [ ] Restart policy set to `unless-stopped`
+  </Step>
+  
+  <Step title="Networking">
+    - [ ] Reverse proxy configured (Nginx/Traefik)
+    - [ ] SSL/TLS termination set up
+    - [ ] CORS origins updated for production domains
+    - [ ] Firewall rules configured
+  </Step>
+  
+  <Step title="Monitoring">
+    - [ ] Health checks enabled
+    - [ ] Logging configured (centralized if possible)
+    - [ ] Metrics collection set up
+    - [ ] Alerts configured for failures
+  </Step>
+  
+  <Step title="Security">
+    - [ ] Non-root user (already in Dockerfile)
+    - [ ] Image scanned for vulnerabilities
+    - [ ] Secrets management in place
+    - [ ] Network isolation configured
+  </Step>
+</Steps>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Environment Configuration" icon="gear" href="/deployment/environment">
+    Configure all environment variables
+  </Card>
+  
+  <Card title="Local Development" icon="code" href="/deployment/local-development">
+    Set up local development environment
+  </Card>
+</CardGroup>

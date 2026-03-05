@@ -1,0 +1,428 @@
+---
+title: Response Structure
+description: Understanding the BackendResponse format, action types, error handling, and HTTP status codes
+---
+
+# Response Structure
+
+All WispHub API endpoints return a standardized `BackendResponse` structure. This consistent format simplifies client-side handling and provides rich context about the operation result.
+
+## BackendResponse Schema
+
+Every API response follows this generic structure defined in `app/schemas/responses/backend_response.py:8`:
+
+```python
+class BackendResponse(BaseModel, Generic[T]):
+    ok: bool
+    type: ResponseType
+    action: ResponseAction
+    data: Optional[T] = None
+    message: Optional[str] = None
+    meta: Optional[dict[str, Any]] = None
+```
+
+### Fields
+
+<ResponseField name="ok" type="boolean" required>
+  Indicates whether the request was successful. `true` for success/info responses, `false` for errors.
+</ResponseField>
+
+<ResponseField name="type" type="ResponseType" required>
+  The type of response. See [Response Types](#response-types) below.
+</ResponseField>
+
+<ResponseField name="action" type="ResponseAction" required>
+  A domain-specific action code that provides context about what happened. See [Response Actions](#response-actions) below.
+</ResponseField>
+
+<ResponseField name="data" type="T | null">
+  The response payload. Type varies by endpoint. Can be `null` for error responses or operations without return data.
+</ResponseField>
+
+<ResponseField name="message" type="string | null">
+  Optional human-readable message providing additional context, especially useful for errors or validation failures.
+</ResponseField>
+
+<ResponseField name="meta" type="object | null">
+  Optional metadata object containing additional information about the response (e.g., pagination, timestamps).
+</ResponseField>
+
+## Response Types
+
+Defined in `app/schemas/responses/response_types.py:3`, the `type` field uses one of three values:
+
+<ResponseField name="success" type="string">
+  The operation completed successfully. `ok` will be `true`.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  The operation failed due to an error. `ok` will be `false` and `message` typically contains details.
+</ResponseField>
+
+<ResponseField name="info" type="string">
+  The operation completed but requires attention (e.g., "not found", "limit reached"). `ok` will be `true`.
+</ResponseField>
+
+<Info>
+  The `info` type is used for non-error situations that need special handling, such as when a zone has reached its ticket limit or when a search returns no results.
+</Info>
+
+## Response Actions
+
+The `action` field provides domain-specific context using enum values from `app/schemas/responses/response_actions.py`. Actions are organized by resource domain:
+
+### Client Actions
+
+```python
+class ClientAction(str, Enum):
+    FOUND = "client_found"
+    NOT_FOUND = "client_not_found"
+    INVALID_DOCUMENT = "invalid_document"
+    LISTED = "clients_listed"
+    UPDATED = "client_updated"
+    UPDATE_FAILED = "client_update_failed"
+    VERIFIED = "client_verified"
+    VERIFICATION_FAILED = "client_verification_failed"
+```
+
+### Ticket Actions
+
+```python
+class TicketAction(str, Enum):
+    CREATED = "ticket_created"
+    CREATION_FAILED = "ticket_creation_failed"
+    NOT_FOUND = "ticket_not_found"
+    FOUND = "ticket_found"
+    ZONE_LIMIT_REACHED = "zone_ticket_limit_reached"
+```
+
+### Network Actions
+
+```python
+class NetworkAction(str, Enum):
+    PING_SUCCESS = "ping_success"
+    PING_FAILED = "ping_failed"
+    PING_CREATED = "ping_created"
+    NO_INTERNET = "no_internet"
+    INTERMITTENT = "intermittent_connection"
+    STABLE = "stable_connection"
+```
+
+### Plan Actions
+
+```python
+class PlanAction(str, Enum):
+    LISTED = "internet_plans_listed"
+    NOT_FOUND = "internet_plan_not_found"
+    FOUND = "internet_plan_found"
+```
+
+### General Actions
+
+```python
+class GeneralAction(str, Enum):
+    REDIRECT_SALES = "redirect_sales"
+    SHOW_PAYMENT_INFO = "show_payment_info"
+    ERROR = "error"
+```
+
+<Note>
+  The `ResponseAction` type is a union of all action enums, allowing any domain-specific action to be used in the response.
+</Note>
+
+## Helper Methods
+
+The `BackendResponse` class provides three factory methods for creating responses:
+
+### Success Response
+
+Defined at `app/schemas/responses/backend_response.py:17`:
+
+```python
+@classmethod
+def success(cls, action: ResponseAction, data: Optional[T] = None, 
+           message: str = None, meta: dict = None):
+    return cls(ok=True, type=ResponseType.success, action=action, 
+              data=data, message=message, meta=meta)
+```
+
+**Example:**
+```python
+BackendResponse.success(
+    action=ClientAction.FOUND,
+    data={"name": "Juan Pérez", "service_id": 12345},
+    message="Cliente encontrado exitosamente"
+)
+```
+
+### Error Response
+
+Defined at `app/schemas/responses/backend_response.py:21`:
+
+```python
+@classmethod
+def error(cls, action: ResponseAction, message: str = None):
+    return cls(ok=False, type=ResponseType.error, action=action, 
+              data=None, message=message)
+```
+
+**Example:**
+```python
+BackendResponse.error(
+    action=ClientAction.NOT_FOUND,
+    message="No se encontró un cliente con ese documento"
+)
+```
+
+### Info Response
+
+Defined at `app/schemas/responses/backend_response.py:25`:
+
+```python
+@classmethod
+def info(cls, action: ResponseAction, data: Optional[T] = None, message: str = None):
+    return cls(ok=True, type=ResponseType.info, action=action, 
+              data=data, message=message)
+```
+
+**Example:**
+```python
+BackendResponse.info(
+    action=TicketAction.ZONE_LIMIT_REACHED,
+    data={"max_tickets": 3},
+    message="La zona ha alcanzado el límite de tickets abiertos"
+)
+```
+
+## Error Handling
+
+The API implements global exception handlers in `app/api/exception_handlers.py` to ensure all errors return the standardized `BackendResponse` format.
+
+### Validation Errors (422)
+
+Handler defined at `app/api/exception_handlers.py:8`:
+
+```python
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    simplified_errors = [f"{err['loc'][-1]}: {err['msg']}" for err in errors]
+    error_msg = "; ".join(simplified_errors)
+    
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message=f"Error de validación: {error_msg}"
+    )
+    return JSONResponse(status_code=422, content=response.model_dump())
+```
+
+**Example Response:**
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "error",
+  "data": null,
+  "message": "Error de validación: pings: field required; service_id: value is not a valid integer",
+  "meta": null
+}
+```
+
+### HTTP Exceptions (404, etc.)
+
+Handler defined at `app/api/exception_handlers.py:27`:
+
+```python
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message=str(exc.detail)
+    )
+    return JSONResponse(status_code=exc.status_code, content=response.model_dump())
+```
+
+**Example Response:**
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "error",
+  "data": null,
+  "message": "Not Found",
+  "meta": null
+}
+```
+
+### Internal Server Errors (500)
+
+Handler defined at `app/api/exception_handlers.py:42`:
+
+```python
+async def general_exception_handler(request: Request, exc: Exception):
+    response = BackendResponse.error(
+        action=GeneralAction.ERROR,
+        message="Ocurrió un error interno en el servidor."
+    )
+    return JSONResponse(status_code=500, content=response.model_dump())
+```
+
+**Example Response:**
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "error",
+  "data": null,
+  "message": "Ocurrió un error interno en el servidor.",
+  "meta": null
+}
+```
+
+<Warning>
+  All uncaught exceptions are wrapped in a generic error message to prevent sensitive information leakage in production.
+</Warning>
+
+## HTTP Status Codes
+
+The API uses standard HTTP status codes alongside the `BackendResponse` structure:
+
+| Status Code | Meaning | Usage |
+|-------------|---------|-------|
+| **200** | OK | Successful request with data returned |
+| **422** | Unprocessable Entity | Request validation failed (Pydantic errors) |
+| **404** | Not Found | Endpoint not found or resource doesn't exist |
+| **500** | Internal Server Error | Uncaught server-side exception |
+
+<Info>
+  Even when an HTTP error status is returned, the response body will always be a valid `BackendResponse` object with `ok: false` and descriptive `message`.
+</Info>
+
+## Example Responses
+
+### Successful Client Lookup
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "client_found",
+  "data": {
+    "service_id": 12345,
+    "name": "Juan Pérez",
+    "document": "1234567890",
+    "phone": "3001234567",
+    "address": "Calle 123 #45-67",
+    "internet_plan_name": "Plan 20 Megas",
+    "internet_plan_price": 45000.0,
+    "zone_id": 5
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+### Client Not Found
+
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "client_not_found",
+  "data": null,
+  "message": "No se encontró un cliente con ese documento",
+  "meta": null
+}
+```
+
+### Ticket Creation Success
+
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": "ticket_created",
+  "data": {
+    "ticket_id": 789,
+    "service_id": 12345,
+    "subject": "Sin conexión a Internet",
+    "status": "open",
+    "created_at": "2026-03-04T10:30:00Z",
+    "estimated_resolution": "2026-03-06T10:30:00Z"
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+### Zone Ticket Limit Reached (Info)
+
+```json
+{
+  "ok": true,
+  "type": "info",
+  "action": "zone_ticket_limit_reached",
+  "data": {
+    "max_tickets": 3
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+### Validation Error
+
+```json
+{
+  "ok": false,
+  "type": "error",
+  "action": "error",
+  "data": null,
+  "message": "Error de validación: service_id: field required",
+  "meta": null
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always check the 'ok' field">
+    Use the `ok` boolean to determine success/failure before processing `data`. Even `info` type responses have `ok: true`.
+  </Accordion>
+  
+  <Accordion title="Use action codes for flow control">
+    The `action` field provides semantic meaning beyond HTTP status codes. Use it to implement domain-specific logic (e.g., redirecting users when `ZONE_LIMIT_REACHED`).
+  </Accordion>
+  
+  <Accordion title="Handle info type responses">
+    Don't treat `type: "info"` as errors. These are successful responses that need special UX handling (e.g., showing a warning instead of error).
+  </Accordion>
+  
+  <Accordion title="Display message to users">
+    The `message` field contains human-readable Spanish text suitable for display in user interfaces.
+  </Accordion>
+</AccordionGroup>
+
+## TypeScript Type Definition
+
+For TypeScript/JavaScript clients, use this interface:
+
+```typescript
+interface BackendResponse<T = any> {
+  ok: boolean;
+  type: 'success' | 'error' | 'info';
+  action: string;
+  data: T | null;
+  message: string | null;
+  meta: Record<string, any> | null;
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="arrow-left" href="/api-reference/overview">
+    Back to API overview and available endpoints
+  </Card>
+  <Card title="Clients API" icon="users" href="/api-reference/clients">
+    Explore client management endpoints
+  </Card>
+</CardGroup>

@@ -1,0 +1,155 @@
+---
+title: API Overview
+description: Introduction to the WispHub API - base URL, versioning, authentication, and available endpoints
+---
+
+# API Overview
+
+The WispHub API is a FastAPI-based REST API that provides local integration with the WispHub ISP management system. This API enables you to manage clients, tickets, network diagnostics, and internet plans programmatically.
+
+## Base URL
+
+All API endpoints are prefixed with the version namespace:
+
+```
+/api/v1/
+```
+
+For example, to retrieve a client by document:
+```
+GET /api/v1/clients/by-document/{document}
+```
+
+## API Information
+
+<ResponseField name="title" type="string">
+  WispHub API
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  API de integración local con WispHub
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  1.0.0
+</ResponseField>
+
+## Interactive Documentation
+
+The API provides automatic interactive documentation powered by FastAPI:
+
+- **Swagger UI**: Available at `/docs` - Interactive API documentation with the ability to test endpoints
+- **ReDoc**: Available at `/redoc` - Alternative API documentation with a clean, readable interface
+
+## Health Check Endpoint
+
+The API includes a health check endpoint for monitoring and load balancer integration:
+
+```bash
+GET /health
+```
+
+**Response Structure:**
+```json
+{
+  "ok": true,
+  "type": "success",
+  "action": null,
+  "data": {
+    "status": "ok",
+    "service": "WispHub Local API"
+  },
+  "message": null,
+  "meta": null
+}
+```
+
+<Info>
+  The health check endpoint returns a standardized `BackendResponse` and is used by Docker and load balancers to verify the service is running and accepting connections.
+</Info>
+
+## Available Resources
+
+The API provides the following resource endpoints:
+
+### Clients
+
+Manage client information, search, verification, and profile updates.
+
+- **GET** `/api/v1/clients/` - List all active clients
+- **GET** `/api/v1/clients/search` - Search clients by query term
+- **GET** `/api/v1/clients/by-document/{document}` - Get client by ID document
+- **GET** `/api/v1/clients/by-phone/{phone}` - Get client by phone number
+- **GET** `/api/v1/clients/by-service-id/{service_id}` - Get client by service ID
+- **POST** `/api/v1/clients/resolve` - Resolve and verify client identity
+- **POST** `/api/v1/clients/{service_id}/verify` - Verify client identity with billing data
+- **PUT** `/api/v1/clients/{service_id}` - Update client profile (phone, document)
+
+### Tickets
+
+Create and manage technical support tickets.
+
+- **POST** `/api/v1/tickets` - Create a new support ticket
+- **GET** `/api/v1/tickets/{ticket_id}` - Get ticket details by ID
+- **GET** `/api/v1/tickets/zone-blocked/{zone_id}` - Check if zone has reached ticket limit
+
+### Network
+
+Perform network diagnostics and connectivity tests.
+
+- **POST** `/api/v1/{service_id}/ping/` - Initiate async ping diagnostic task
+- **GET** `/api/v1/ping/{task_id}/` - Get ping task results and connection status
+
+### Internet Plans
+
+Retrieve internet plan information and pricing.
+
+- **GET** `/api/v1/internet-plans/` - List all available internet plans
+- **GET** `/api/v1/internet-plans/{plan_id}` - Get detailed plan information
+
+## CORS Configuration
+
+The API is configured with CORS middleware to allow cross-origin requests from the following origins:
+
+- `http://localhost`
+- `http://localhost:3000` (Frontend development)
+- `http://localhost:8080` (Frontend development)
+- `http://localhost:8081` (Chatbot interface)
+- `http://localhost:8082` (Chatbot interface fallback)
+
+<Warning>
+  Production domains must be explicitly configured in the CORS origins list before deployment.
+</Warning>
+
+## Response Format
+
+All API endpoints return responses using a standardized `BackendResponse` structure. This ensures consistency across all endpoints and simplifies error handling.
+
+See [Response Structure](/api-reference/responses) for detailed information about the response format, action types, and error handling.
+
+## Endpoint Tags
+
+Endpoints are organized by the following tags in the interactive documentation:
+
+- **system** - System endpoints (health check)
+- **Clients** - Client management operations
+- **tickets** - Support ticket operations
+- **network** - Network diagnostic operations
+- **internet-plans** - Internet plan queries
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Response Structure" icon="arrow-right" href="/api-reference/responses">
+    Learn about the BackendResponse format and error handling
+  </Card>
+  <Card title="Clients API" icon="users" href="/api-reference/clients">
+    Explore client management endpoints
+  </Card>
+  <Card title="Tickets API" icon="ticket" href="/api-reference/tickets">
+    Create and manage support tickets
+  </Card>
+  <Card title="Network API" icon="network-wired" href="/api-reference/network">
+    Run network diagnostics and connectivity tests
+  </Card>
+</CardGroup>
