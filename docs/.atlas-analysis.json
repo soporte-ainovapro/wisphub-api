@@ -1,6 +1,6 @@
 {
   "projectType": "api-service",
-  "projectName": "WispHub API",
+  "projectName": "WispHub API Middleware",
   "projectDescription": "High-performance FastAPI middleware connecting WispHub Net with third-party applications and conversational interfaces.",
   "theme": "aspen",
   "primaryColor": "#0cc493",
