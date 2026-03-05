@@ -2,6 +2,81 @@
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 let currentClient = null;
 
+// ── Subject detection ────────────────────────────────────────────────────────
+// Loaded once from the API at startup. Fallback to static map if unavailable.
+let availableSubjects = [];
+
+// Keyword map: each key is a valid WispHub subject, each value is a list
+// of Spanish keywords/phrases a user might say to describe that problem.
+const SUBJECT_KEYWORDS = {
+    "No Tiene Internet": ["sin internet", "no tengo internet", "no conecta", "sin servicio", "sin conexion", "no hay internet"],
+    "Internet Lento": ["lento", "lenta", "muy lento", "despacio", "baja velocidad", "tarda", "lentitud"],
+    "Internet Intermitente": ["intermitente", "se corta", "se cae", "fluctua", "se desconecta", "va y viene", "inestable"],
+    "Antena Desalineada": ["antena desalineada", "antena movida", "antena fuera de lugar", "desalineada", "desalineado", "señal baja"],
+    "Antena Dañada": ["antena dañada", "antena rota", "antena quemada", "antena golpeada"],
+    "Antena valores De Fabrica": ["antena reseteada", "antena en fabrica", "antena por defecto"],
+    "No Responde la Antena": ["antena no responde", "antena sin señal", "antena apagada", "no ping antena"],
+    "No Responde el Router Wifi": ["router no responde", "router apagado", "wifi no funciona", "router sin luz", "no enciende"],
+    "Router Wifi Reseteado (Valores de Fabrica)": ["router reseteado", "router en fabrica", "wifi reseteado", "valores de fabrica", "configuracion de fabrica"],
+    "Cambio de Router Wifi": ["cambio de router", "nuevo router", "reemplazar router"],
+    "Cambio de Antena": ["cambio de antena", "nueva antena", "reemplazar antena"],
+    "Cambio de Antena + Router Wifi": ["cambio de antena y router", "cambio antena router"],
+    "Cable UTP Dañado": ["cable dañado", "cable roto", "cable utp", "cable cortado", "cable partido"],
+    "PoE Dañado": ["poe dañado", "poe quemado", "sin alimentacion", "inyector dañado"],
+    "Conector Dañado": ["conector dañado", "conector roto", "conector suelto"],
+    "Eliminador Dañado": ["eliminador dañado", "fuente dañada", "adaptador dañado"],
+    "RJ45 Dañado": ["rj45 dañado", "rj45 roto", "conector rj45"],
+    "Alambres Rotos": ["alambres rotos", "alambre cortado", "cable pelado"],
+    "Cable Fibra Dañado": ["fibra dañada", "cable fibra", "fibra rota", "fibra cortada"],
+    "Jumper Dañado": ["jumper dañado", "jumper roto"],
+    "Cables Mal Colocados": ["cables mal puestos", "cables sueltos", "cables mal colocados"],
+    "Cableado Para Modem Extra": ["cableado modem", "modem adicional", "modem extra"],
+    "Cambio de Contraseña en Router Wifi": ["cambio de contraseña", "cambiar clave wifi", "clave wifi", "contraseña wifi"],
+    "Cambio de Domicilio": ["cambio de domicilio", "cambio de direccion", "me mudo", "mudanza"],
+    "Cancelación": ["cancelar", "cancelacion", "dar de baja", "suspender servicio"],
+    "Desconexión": ["desconectar", "desconexion", "cortar servicio"],
+    "Recolección De Equipos": ["recoger equipo", "recoleccion", "devolver equipo"],
+    "Reconexión": ["reconectar", "reconexion", "volver a conectar", "reactivar"],
+    "Troncal Dañado": ["troncal dañado", "red principal caida", "troncal"],
+    "Caja Nap Dañada": ["caja nap", "nap dañada", "caja de fibra"],
+    "Cambio A Fibra Óptica": ["cambio a fibra", "fibra optica", "upgrade fibra"],
+};
+
+/**
+ * Loads available subjects from the API.
+ * Falls back silently if the endpoint is unavailable.
+ */
+async function loadTicketSubjects() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/tickets/subjects`);
+        const json = await res.json();
+        if (json.type === "success" && json.data?.all) {
+            availableSubjects = json.data.all;
+        }
+    } catch (e) {
+        console.warn("No se pudo cargar subjects desde el API. Usando mapa local.", e);
+    }
+}
+
+/**
+ * Detects the most appropriate WispHub subject from a user's natural language description.
+ * @param {string} text - User input
+ * @param {string} fallback - Default subject if no match is found
+ * @returns {string} - A valid WispHub subject
+ */
+function detectSubjectFromInput(text, fallback = "No Tiene Internet") {
+    const lower = text.toLowerCase();
+    for (const [subject, keywords] of Object.entries(SUBJECT_KEYWORDS)) {
+        // Only use this subject if it's in the loaded list (or if the list is empty = use all)
+        const isValid = availableSubjects.length === 0 || availableSubjects.includes(subject);
+        if (isValid && keywords.some(kw => lower.includes(kw))) {
+            return subject;
+        }
+    }
+    return fallback;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // UI Elements
 const chatWindow = document.getElementById('chat-window');
 const chatToggleBtn = document.getElementById('chat-toggle');
@@ -14,6 +89,8 @@ const sendBtn = document.getElementById('send-btn');
 
 let currentState = 'start';
 let isTyping = false;
+let detectedSubject = 'No Tiene Internet'; // Subject detected from user's description
+let userDescription = '';                  // Raw text the user gave at the start
 
 // Helpers
 const scrollToBottom = () => {
@@ -191,7 +268,7 @@ async function pollPingResult(taskId) {
     }
 }
 
-async function createTicket() {
+async function createTicket(subject = "No Tiene Internet") {
     try {
         const res = await fetch(`${API_BASE_URL}/tickets`, {
             method: 'POST',
@@ -199,9 +276,9 @@ async function createTicket() {
             body: JSON.stringify({
                 service_id: currentClient.service_id,
                 zone_id: currentClient.zone_id,
-                subject: "Avería reportada por Chatbot",
-                description: `Soporte automático: Problema de conexión detectado tras diagnóstico físico y de red.`,
-                technician_id: currentClient.technician_id || 1
+                subject: subject,
+                description: `Cliente reporta: "${userDescription}". Diagnóstico automático: Problema detectado tras revisión física y de red.`,
+                technician_id: currentClient.technician_id
             })
         });
         const json = await res.json();
@@ -236,7 +313,14 @@ const processState = async (stateKey, input = null) => {
                 return;
             }
 
-            const helpKeywords = ['soporte', 'ayuda', 'internet', 'falla', 'avería', 'lento', 'caído', 'luz roja', 'sin servicio'];
+            // Capture raw user description for ticket logging
+            userDescription = input.trim();
+
+            // Try to detect a specific subject from the user's description
+            detectedSubject = detectSubjectFromInput(lowerInput);
+
+            const helpKeywords = ['soporte', 'ayuda', 'internet', 'falla', 'avería', 'averia', 'lento', 'caído', 'caido', 'luz roja', 'sin servicio',
+                'antena', 'router', 'cable', 'fibra', 'señal', 'sin conexion', 'no conecta'];
             const seeksSupport = helpKeywords.some(k => lowerInput.includes(k));
 
             if (seeksSupport) {
@@ -317,7 +401,7 @@ const processState = async (stateKey, input = null) => {
             const taskId = await startPing(currentClient.service_id);
             if (!taskId) {
                 removeTyping();
-                await processState('create_ticket_auto');
+                await processState('create_ticket_auto', detectedSubject);
                 return;
             }
             const pingResult = await pollPingResult(taskId);
@@ -327,14 +411,17 @@ const processState = async (stateKey, input = null) => {
                 await addMessage("Tu conexión parece estar estable desde nuestro lado. Si el problema persiste, revisa tus cables internos.", 'bot');
                 addEndState({ text: "🟢 Conexión estable (Ping OK) - FIN", type: "green" });
             } else {
-                await addMessage(`Tu conexión se encuentra: <strong>${pingResult === 'no_internet' ? 'Sin Internet' : 'Intermitente'}</strong>.`, 'bot');
-                await processState('create_ticket_auto');
+                // Ping result is the ground truth for the ticket subject
+                const pingSubject = pingResult === 'intermittent' ? 'Internet Intermitente' : 'No Tiene Internet';
+                const pingLabel = pingResult === 'no_internet' ? 'Sin Internet' : 'Intermitente';
+                await addMessage(`La prueba de red establece que tu conexión está <strong>${pingLabel}</strong>.`, 'bot');
+                await processState('create_ticket_auto', pingSubject);
             }
             break;
 
         case 'create_ticket_auto':
             showTyping();
-            const res = await createTicket();
+            const res = await createTicket(input || detectedSubject);
             removeTyping();
             if (res === "success") {
                 await addMessage("He generado un ticket de soporte para que un técnico revise tu caso. Te contactaremos pronto.", 'bot');
@@ -460,11 +547,14 @@ restartBtn.addEventListener('click', () => {
     messagesContainer.innerHTML = '';
     userInputBox.value = '';
     currentClient = null;
+    detectedSubject = 'No Tiene Internet';
+    userDescription = '';
     processState('start');
 });
 
-// Auto-start for quick testing after loaded
-window.addEventListener('load', () => {
+// Auto-start: load subjects from API and open chat after page loads
+window.addEventListener('load', async () => {
+    await loadTicketSubjects(); // Non-blocking: sets availableSubjects for validation
     setTimeout(() => {
         chatToggleBtn.click();
     }, 500);

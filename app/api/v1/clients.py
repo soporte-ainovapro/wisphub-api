@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Path
+from typing import Any
+
+from fastapi import APIRouter, Depends, Path
 from app.services.clients_service import get_client_by_document, get_client_by_phone, get_client_by_service_id, get_clients, fetch_clients_by_query, update_client_profile
 from app.schemas.responses.backend_response import BackendResponse
 from app.utils.responses import build_client_response
 from app.schemas.responses.response_actions import ResponseAction, ClientAction
 from app.schemas.responses.response_types import ResponseType
 from app.schemas.clients import ClientResponse, ClientUpdateRequest, ClientVerifyRequest, ClientResolveRequest
+from app.api.dependencies import get_current_user
 
 router = APIRouter(tags=["Clients"])
 
 @router.get("/api/v1/clients/by-document/{document}", response_model=BackendResponse[ClientResponse])
-async def get_client_by_document_endpoint(document: str = Path(...)):
+async def get_client_by_document_endpoint(document: str = Path(...), _: str = Depends(get_current_user)):
     """
     Obtiene la información de un cliente utilizando su documento de identidad (cédula).
     Busca en el sistema de WispHub y retorna los detalles del servicio asociado.
@@ -18,7 +21,7 @@ async def get_client_by_document_endpoint(document: str = Path(...)):
     return build_client_response(client)
 
 @router.get("/api/v1/clients/by-phone/{phone}", response_model=BackendResponse[ClientResponse])
-async def get_client_by_phone_endpoint(phone: str = Path(...)):
+async def get_client_by_phone_endpoint(phone: str = Path(...), _: str = Depends(get_current_user)):
     """
     Obtiene la información de un cliente utilizando su número de teléfono.
     Limpia el número (remueve prefijos como '+') y realiza la búsqueda en WispHub.
@@ -27,7 +30,7 @@ async def get_client_by_phone_endpoint(phone: str = Path(...)):
     return build_client_response(client)
 
 @router.get("/api/v1/clients/by-service-id/{service_id}", response_model=BackendResponse[ClientResponse])
-async def get_client_by_service_id_endpoint(service_id: str = Path(...)):
+async def get_client_by_service_id_endpoint(service_id: str = Path(...), _: str = Depends(get_current_user)):
     """
     Obtiene la información de un cliente utilizando su ID de servicio de WispHub.
     Esta es la búsqueda más precisa ya que se utiliza el identificador único del sistema.
@@ -36,7 +39,7 @@ async def get_client_by_service_id_endpoint(service_id: str = Path(...)):
     return build_client_response(client)
 
 @router.get("/api/v1/clients/search", response_model=BackendResponse[list[ClientResponse]])
-async def search_clients_endpoint(q: str):
+async def search_clients_endpoint(q: str, _: str = Depends(get_current_user)):
     """
     Realiza una búsqueda flexible de clientes a través de un término general.
     Ideal para encontrar clientes por nombre completo, dirección, 
@@ -50,7 +53,7 @@ async def search_clients_endpoint(q: str):
     )
 
 @router.get("/api/v1/clients/", response_model=BackendResponse[list[ClientResponse]])
-async def get_clients_endpoint():
+async def get_clients_endpoint(_: str = Depends(get_current_user)):
     """
     Obtiene el listado general de todos los clientes activos registrados en el sistema.
     Retorna la lista parseada con los detalles esenciales de cada servicio e información de contacto.
@@ -62,7 +65,7 @@ async def get_clients_endpoint():
     )
 
 @router.post("/api/v1/clients/resolve", response_model=BackendResponse[ClientResponse])
-async def resolve_client_endpoint(request: ClientResolveRequest):
+async def resolve_client_endpoint(request: ClientResolveRequest, _: str = Depends(get_current_user)):
     """
     Identifica y verifica al cliente en una sola llamada, sin necesidad de conocer
     el service_id previamente. Busca candidatos por nombre y prueba cada uno contra
@@ -128,8 +131,8 @@ async def resolve_client_endpoint(request: ClientResolveRequest):
         message="Ningún cliente coincide con todos los datos proporcionados."
     )
 
-@router.put("/api/v1/clients/{service_id}", response_model=BackendResponse[None])
-async def update_client_endpoint(service_id: int, request: ClientUpdateRequest):
+@router.put("/api/v1/clients/{service_id}", response_model=BackendResponse[Any])
+async def update_client_endpoint(service_id: int, request: ClientUpdateRequest, _: str = Depends(get_current_user)):
     """
     Actualiza datos críticos del perfil de un cliente en WispHub,
     tal como su número telefónico o número de documento (cédula).
@@ -165,7 +168,7 @@ async def update_client_endpoint(service_id: int, request: ClientUpdateRequest):
         )
 
 @router.post("/api/v1/clients/{service_id}/verify", response_model=BackendResponse[dict])
-async def verify_client_identity_endpoint(service_id: int, request: ClientVerifyRequest):
+async def verify_client_identity_endpoint(service_id: int, request: ClientVerifyRequest, _: str = Depends(get_current_user)):
     """
     Verifica la identidad del cliente tomando como base sus datos de facturación
     (como el nombre de su plan, el precio que paga, o su dirección de residencia).

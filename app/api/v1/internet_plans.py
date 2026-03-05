@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Depends, Path
 
 from app.schemas.responses.backend_response import BackendResponse
 from app.schemas.responses.response_actions import ResponseAction, PlanAction
@@ -6,11 +6,12 @@ from app.schemas.responses.response_types import ResponseType
 from app.schemas.internet_plans import InternetPlanListItem, InternetPlanResponse
 from typing import List, Dict, Any
 from app.services.internet_plans_service import get_plan_type, get_queue_plan, list_internet_plans, get_pppoe_plan
+from app.api.dependencies import get_current_user
 
 router = APIRouter(tags=["internet-plans"])
 
 @router.get("/api/v1/internet-plans/", response_model=BackendResponse[List[InternetPlanListItem]])
-async def list_internet_plans_endpoint():
+async def list_internet_plans_endpoint(_: str = Depends(get_current_user)):
     """
     Lista todos los planes de internet configurados en el sistema WispHub.
     Esta consulta está cacheada internamente para mejorar el rendimiento y evitar
@@ -29,7 +30,7 @@ async def list_internet_plans_endpoint():
     )
 
 @router.get("/api/v1/internet-plans/{plan_id}", response_model=BackendResponse[InternetPlanResponse | Dict[str, Any]])
-async def get_internet_plan_detail_endpoint(plan_id: int = Path(...)):
+async def get_internet_plan_detail_endpoint(plan_id: int = Path(...), _: str = Depends(get_current_user)):
     """
     Obtiene los detalles de un plan por ID.
     - Simple Queue: retorna nombre, precio, velocidades.

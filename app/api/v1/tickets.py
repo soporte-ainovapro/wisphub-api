@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Path, Body
+from fastapi import APIRouter, Depends, Path, Body
 from app.services.tickets_service import zone_has_three_open_tickets, create_ticket, get_ticket
 from app.schemas.responses.response_actions import ResponseAction, TicketAction
 from app.schemas.responses.response_types import ResponseType
 from app.schemas.responses.backend_response import BackendResponse
 from app.core.config import settings
 from app.schemas.tickets import TicketCreate, TicketResponse, TicketCreateRequest
+from app.utils.ticket_rules import priorities
+from app.api.dependencies import get_current_user
 
 router = APIRouter(tags=["tickets"])
 
@@ -14,7 +16,8 @@ router = APIRouter(tags=["tickets"])
     response_model=BackendResponse[TicketResponse | dict]
 )
 async def create_ticket_endpoint(
-    request: TicketCreateRequest = Body(...)
+    request: TicketCreateRequest = Body(...),
+    _: str = Depends(get_current_user)
 ):
     """
     Abre e instancia un nuevo Ticket de Soporte Técnico en WispHub.
@@ -52,35 +55,35 @@ async def create_ticket_endpoint(
     )
 
 
-@router.get("/api/v1/tickets/{ticket_id}", response_model=BackendResponse[TicketResponse])
-async def get_ticket_endpoint(ticket_id: int = Path(..., description="El identificador único del ticket")):
+@router.get("/api/v1/tickets/subjects", response_model=BackendResponse[dict])
+async def get_ticket_subjects(_: str = Depends(get_current_user)):
     """
-    Recupera la información completa de un soporte técnico mediante su ID único.
-    Extrae elementos esenciales como la fecha de apertura, la prioridad asignada 
-    y verifica el historial para traer la última respuesta o estado actual 
-    resolutivo anotado en el sistema externo.
+    Devuelve todos los asuntos válidos para la creación de tickets en WispHub,
+    agrupados por nivel de prioridad. Útil para bots y clientes externos que
+    necesitan seleccionar un asunto válido antes de abrir un soporte.
     """
-    ticket = await get_ticket(ticket_id)
-    
-    if not ticket:
-        return BackendResponse.info(
-            action=TicketAction.NOT_FOUND
-        )
-    
-    return BackendResponse.success(
-        action=TicketAction.FOUND,
-        data=ticket
-    )
+    all_subjects = [s for subjects in priorities.values() for s in subjects]
+    data = {
+        "by_priority": {
+            "low": priorities[1],
+            "normal": priorities[2],
+            "high": priorities[3],
+            "very_high": priorities[4],
+        },
+        "all": all_subjects
+    }
+    return BackendResponse.success(action=TicketAction.SUBJECTS_LISTED, data=data)
+
 
 @router.get("/api/v1/tickets/zone-blocked/{zone_id}", response_model=BackendResponse[dict])
-async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID de la zona del cliente")):
+async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID de la zona del cliente"), _: str = Depends(get_current_user)):
     """
     Verifica rápidamente si una zona específica ha excedido el límite máximo
     de tickets abiertos en WispHub. 
     Retorna verdadero o falso y el límite configurado actualmente.
     """
     zone_blocked = await zone_has_three_open_tickets(zone_id)
-    
+
     return BackendResponse.success(
         action=TicketAction.FOUND,
         data={
@@ -88,4 +91,24 @@ async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID d
             "max_tickets": settings.MAX_ACTIVE_TICKETS_PER_ZONE
         }
     )
-    
+
+
+@router.get("/api/v1/tickets/{ticket_id}", response_model=BackendResponse[TicketResponse])
+async def get_ticket_endpoint(ticket_id: int = Path(..., description="El identificador único del ticket"), _: str = Depends(get_current_user)):
+    """
+    Recupera la información completa de un soporte técnico mediante su ID único.
+    Extrae elementos esenciales como la fecha de apertura, la prioridad asignada 
+    y verifica el historial para traer la última respuesta o estado actual 
+    resolutivo anotado en el sistema externo.
+    """
+    ticket = await get_ticket(ticket_id)
+
+    if not ticket:
+        return BackendResponse.info(
+            action=TicketAction.NOT_FOUND
+        )
+
+    return BackendResponse.success(
+        action=TicketAction.FOUND,
+        data=ticket
+    )

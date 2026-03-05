@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "WispHub API",
-        "description": "Colecci\u00f3n de endpoints para interactuar con la API local de WispHub (Refactorizada).",
+        "description": "Endpoints for the WispHub local middleware API. All routes except /health and /api/v1/auth/token require a Bearer JWT token. Use the 'Login' request first, which auto-saves the token to the {{token}} collection variable.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -9,18 +9,86 @@
             "key": "base_url",
             "value": "http://localhost:8000",
             "type": "string"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string",
+            "description": "JWT Bearer token — populated automatically by the 'Login' request."
         }
     ],
     "item": [
         {
-            "name": "Clientes (Clients)",
-            "description": "B\u00fasqueda y listado de clientes en el sistema",
+            "name": "Authentication",
+            "description": "Obtain and manage JWT access tokens",
             "item": [
                 {
-                    "name": "Listar todos los Clientes",
+                    "name": "Login – Obtain Access Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "if (json.access_token) {",
+                                    "    pm.collectionVariables.set('token', json.access_token);",
+                                    "    console.log('Token saved to {{token}}');",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "username",
+                                    "value": "admin",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "wisphub2024",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/token",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "token"
+                            ]
+                        },
+                        "description": "Authenticates with username/password and returns a JWT Bearer token. The test script automatically saves the token to the '{{token}}' collection variable so all other requests work without manual setup."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Clients (Clients)",
+            "description": "Search and list clients in the system",
+            "item": [
+                {
+                    "name": "List All Clients",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/clients/",
                             "host": [
@@ -36,10 +104,16 @@
                     }
                 },
                 {
-                    "name": "Cliente por Documento",
+                    "name": "Client by Document",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/clients/by-document/123456789",
                             "host": [
@@ -56,10 +130,16 @@
                     }
                 },
                 {
-                    "name": "Cliente por Tel\u00e9fono",
+                    "name": "Client by Phone",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/clients/by-phone/55512345",
                             "host": [
@@ -76,10 +156,16 @@
                     }
                 },
                 {
-                    "name": "Cliente por Service ID",
+                    "name": "Client by Service ID",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/clients/by-service-id/100",
                             "host": [
@@ -96,10 +182,16 @@
                     }
                 },
                 {
-                    "name": "B\u00fasqueda Flexible (Por Nombre/Direcci\u00f3n)",
+                    "name": "Flexible Search (Name / Address)",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/clients/search?q=Juan Perez",
                             "host": [
@@ -121,13 +213,18 @@
                     }
                 },
                 {
-                    "name": "Actualizar Perfil (C\u00e9dula/Tel\u00e9fono)",
+                    "name": "Update Profile (Document / Phone)",
                     "request": {
                         "method": "PUT",
                         "header": [
                             {
                                 "key": "Content-Type",
                                 "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
                                 "type": "text"
                             }
                         ],
@@ -155,13 +252,18 @@
                     }
                 },
                 {
-                    "name": "Verificar Identidad (Datos de Factura)",
+                    "name": "Verify Identity (Billing Data)",
                     "request": {
                         "method": "POST",
                         "header": [
                             {
                                 "key": "Content-Type",
                                 "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
                                 "type": "text"
                             }
                         ],
@@ -188,18 +290,63 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "Resolve Client (Single-pass)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Juan Perez\",\n    \"address\": \"Bellavista\",\n    \"internet_plan_price\": 40000.0\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/clients/resolve",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "clients",
+                                "resolve"
+                            ]
+                        }
+                    }
                 }
             ]
         },
         {
-            "name": "Planes de Internet",
-            "description": "Consulta de planes de red disponibles y detalles",
+            "name": "Internet Plans",
+            "description": "Query available internet plans and their details",
             "item": [
                 {
-                    "name": "Listar Planes",
+                    "name": "List Plans",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/internet-plans",
                             "host": [
@@ -214,10 +361,16 @@
                     }
                 },
                 {
-                    "name": "Detalle de Plan",
+                    "name": "Plan Detail",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/internet-plans/10",
                             "host": [
@@ -235,14 +388,20 @@
             ]
         },
         {
-            "name": "Soporte (Tickets)",
-            "description": "Gesti\u00f3n de soporte y tickets t\u00e9cnicos",
+            "name": "Support (Tickets)",
+            "description": "Management of support and technical tickets",
             "item": [
                 {
-                    "name": "Crear Ticket",
+                    "name": "Create Ticket",
                     "request": {
                         "method": "POST",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "body": {
                             "mode": "raw",
                             "raw": "{\n    \"service_id\": 100,\n    \"subject\": \"Sin acceso a internet\",\n    \"technician_id\": 5,\n    \"description\": \"El cliente reporta luz roja en el router.\",\n    \"zone_id\": 1\n}",
@@ -266,10 +425,41 @@
                     }
                 },
                 {
-                    "name": "Verificar Zona Bloqueada",
+                    "name": "Get Ticket Subjects",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/tickets/subjects",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "tickets",
+                                "subjects"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Check Zone Blocked",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/tickets/zone-blocked/1",
                             "host": [
@@ -286,10 +476,16 @@
                     }
                 },
                 {
-                    "name": "Obtener Ticket",
+                    "name": "Get Ticket",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/tickets/500",
                             "host": [
@@ -307,14 +503,20 @@
             ]
         },
         {
-            "name": "Red y Diagn\u00f3sticos",
-            "description": "Herramientas de diagn\u00f3stico como Pings",
+            "name": "Network & Diagnostics",
+            "description": "Diagnostic tools such as Pings",
             "item": [
                 {
-                    "name": "Iniciar Ping As\u00edncrono",
+                    "name": "Start Async Ping",
                     "request": {
                         "method": "POST",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "body": {
                             "mode": "raw",
                             "raw": "{\n    \"pings\": 4\n}",
@@ -340,10 +542,16 @@
                     }
                 },
                 {
-                    "name": "Consultar Resultado PING por Task ID",
+                    "name": "Get PING Result by Task ID",
                     "request": {
                         "method": "GET",
-                        "header": [],
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}",
+                                "type": "text"
+                            }
+                        ],
                         "url": {
                             "raw": "{{base_url}}/api/v1/ping/123-abc/",
                             "host": [

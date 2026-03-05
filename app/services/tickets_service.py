@@ -58,10 +58,12 @@ async def create_ticket(
     }
 
     async with httpx.AsyncClient(timeout=10) as client:
+        # Solo enviar campos que tengan valor
+        payload_filtered = {k: v for k, v in payload.items() if v not in (None, "")}
         response = await client.post(
             url,
             headers=HEADERS,
-            files={k: (None, "" if v is None else str(v)) for k, v in payload.items()},
+            files={k: (None, str(v)) for k, v in payload_filtered.items()},
         )
 
     print(f"Respuesta de creación de ticket: {response.status_code} - {response.text}")

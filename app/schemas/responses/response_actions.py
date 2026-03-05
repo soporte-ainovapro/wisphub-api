@@ -17,6 +17,7 @@ class TicketAction(str, Enum):
     NOT_FOUND = "ticket_not_found"
     FOUND = "ticket_found"
     ZONE_LIMIT_REACHED = "zone_ticket_limit_reached"
+    SUBJECTS_LISTED = "ticket_subjects_listed"
 
 class NetworkAction(str, Enum):
     PING_SUCCESS = "ping_success"
@@ -36,5 +37,8 @@ class GeneralAction(str, Enum):
     SHOW_PAYMENT_INFO = "show_payment_info"
     ERROR = "error"
 
+class SystemAction(str, Enum):
+    HEALTH_OK = "health_ok"
+
 # Export a Union Type of all possible Domain Actions for Pydantic Validation
-ResponseAction = Union[ClientAction, TicketAction, NetworkAction, PlanAction, GeneralAction]
+ResponseAction = Union[ClientAction, TicketAction, NetworkAction, PlanAction, GeneralAction, SystemAction]
