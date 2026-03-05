@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "WispHub API",
+  "name": "WispHub API Middleware",
   "theme": "aspen",
   "colors": {
     "primary": "#0cc493",
