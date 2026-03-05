@@ -18,15 +18,15 @@ Creates and initializes a new technical support ticket in WispHub. This endpoint
 </ParamField>
 
 <ParamField body="subject" type="string" required>
-  Brief summary of the ticket issue. **Must match exactly one of the valid subjects returned by [`GET /api/v1/tickets/subjects`](/api-reference/tickets/list-subjects).** WispHub uses this value to automatically assign the ticket's priority level.
+  Brief summary of the ticket issue. **Must match exactly one of the valid subjects returned by [`GET /api/v1/tickets/subjects`](/api-reference/tickets/list-subjects).**
 </ParamField>
 
 <ParamField body="description" type="string" required>
   Detailed description of the technical issue or support request
 </ParamField>
 
-<ParamField body="technician_id" type="integer | null" required>
-  ID of the assigned technician. Can be null if not yet assigned
+<ParamField body="technician_id" type="integer" required>
+  ID of the assigned technician.
 </ParamField>
 
 <ParamField body="zone_id" type="integer" required>
