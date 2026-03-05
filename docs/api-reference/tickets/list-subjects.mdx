@@ -5,7 +5,7 @@ description: Get all valid ticket subjects and priorities available for creating
 
 # List Ticket Subjects
 
-Devuelve todos los asuntos válidos para la creación de tickets en WispHub, agrupados por nivel de prioridad. Ideal para bots o interfaces externas que necesitan mostrar al usuario una lista de opciones antes de abrir un soporte.
+Returns all valid subjects for creating support tickets in WispHub, grouped by priority level. Ideal for bots or external interfaces that need to present the user with a list of options before opening a support request.
 
 ## Endpoint
 
@@ -14,12 +14,12 @@ GET /api/v1/tickets/subjects
 ```
 
 <Info>
-  Este endpoint requiere autenticación JWT. Incluye el header `Authorization: Bearer <token>`.
+  This endpoint requires JWT authentication. Include the `Authorization: Bearer <token>` header.
 </Info>
 
 ## Request
 
-No se requieren parámetros ni body.
+No parameters or request body required.
 
 ### Headers
 
@@ -90,42 +90,46 @@ No se requieren parámetros ni body.
 }
 ```
 
+<Info>
+  The subject strings are in Spanish because they map directly to WispHub Net ticket categories. They must be passed as-is when creating a ticket.
+</Info>
+
 ### Response Fields
 
 <ResponseField name="data.by_priority" type="object">
-  Asuntos agrupados por nivel de prioridad. Útil para generar menús desplegables categorizados.
+  Subjects grouped by priority level. Useful for building categorized dropdown menus.
 
   <Expandable title="priority levels">
     <ResponseField name="low" type="string[]">
-      Prioridad baja (nivel 1): asuntos administrativos o no urgentes.
+      Priority level 1: administrative or non-urgent requests.
     </ResponseField>
     <ResponseField name="normal" type="string[]">
-      Prioridad normal (nivel 2): problemas de degradación del servicio.
+      Priority level 2: service degradation issues (slowness, intermittent connection).
     </ResponseField>
     <ResponseField name="high" type="string[]">
-      Prioridad alta (nivel 3): pérdida de servicio o daño de equipos.
+      Priority level 3: complete service loss or equipment damage.
     </ResponseField>
     <ResponseField name="very_high" type="string[]">
-      Prioridad muy alta (nivel 4): fallas de infraestructura o fibra óptica.
+      Priority level 4: trunk infrastructure or fiber optic failures.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="data.all" type="string[]">
-  Lista plana con todos los asuntos válidos, sin importar prioridad. Útil para validación o búsqueda.
+  Flat list of all valid subjects regardless of priority. Useful for validation or search.
 </ResponseField>
 
 ## Priority Reference Table
 
 | Priority Level | Value | Description |
 |---|---|---|
-| `low` | 1 | Gestiones administrativas, sin urgencia técnica |
-| `normal` | 2 | Degradación del servicio (lentitud, intermitencia) |
-| `high` | 3 | Pérdida completa del servicio o daño de equipo |
-| `very_high` | 4 | Falla de infraestructura troncal o fibra |
+| `low` | 1 | Administrative requests, no technical urgency |
+| `normal` | 2 | Service degradation (slowness, intermittent connectivity) |
+| `high` | 3 | Complete service loss or damaged equipment |
+| `very_high` | 4 | Trunk infrastructure or fiber optic failure |
 
 <Tip>
-  El nivel de prioridad impacta la urgencia con que WispHub asigna un técnico. Usa `very_high` solo para fallas masivas de infraestructura.
+  The priority level determines how urgently WispHub dispatches a technician. Use `very_high` only for large-scale infrastructure failures.
 </Tip>
 
 ## Code Examples
@@ -150,7 +154,7 @@ async def get_ticket_subjects(token: str) -> dict:
         data = response.json()["data"]
         return data
 
-# Obtener solo los asuntos de prioridad alta
+# Get only high-priority subjects
 subjects = await get_ticket_subjects(token)
 high_priority = subjects["by_priority"]["high"]
 ```
@@ -164,10 +168,10 @@ async function getTicketSubjects(token) {
   return data;
 }
 
-// Uso
+// Usage
 const subjects = await getTicketSubjects(token);
-console.log(subjects.by_priority.high); // array de asuntos alta prioridad
-console.log(subjects.all);              // todos los asuntos
+console.log(subjects.by_priority.high); // high-priority subjects array
+console.log(subjects.all);              // all subjects flat list
 ```
 
 </CodeGroup>
@@ -184,19 +188,19 @@ console.log(subjects.all);              // todos los asuntos
 
 ## Use Case: Bot Integration
 
-Este endpoint es especialmente útil para bots de WhatsApp o interfaces de autoservicio:
+This endpoint is especially useful for WhatsApp bots or self-service interfaces:
 
-1. **Al iniciar un flujo de soporte**, llama a `GET /api/v1/tickets/subjects` para obtener la lista actualizada.
-2. **Muestra las opciones al usuario** agrupadas por urgencia o como lista plana.
-3. **Al crear el ticket**, pasa el asunto seleccionado a `POST /api/v1/tickets`. WispHub asignará automáticamente la prioridad basada en el asunto.
+1. **When starting a support flow**, call `GET /api/v1/tickets/subjects` to fetch the up-to-date list.
+2. **Present the options to the user** grouped by urgency or as a flat list.
+3. **When creating the ticket**, pass the selected subject to `POST /api/v1/tickets`. WispHub will automatically assign the priority based on the subject.
 
 ## Related
 
 <CardGroup cols={2}>
   <Card title="Create Ticket" icon="ticket-plus" href="/api-reference/tickets/create-ticket">
-    Crea un ticket usando uno de estos asuntos
+    Create a ticket using one of these subjects
   </Card>
   <Card title="Check Zone Blocked" icon="ban" href="/api-reference/tickets/check-zone-blocked">
-    Verifica si la zona tiene cupo antes de crear el ticket
+    Check if a zone has capacity before creating a ticket
   </Card>
 </CardGroup>

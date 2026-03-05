@@ -36,11 +36,11 @@ GET /api/v1/clients/by-document/{document}
 
 ## Authentication
 
-Todos los endpoints de esta API (excepto `/health` y `/api/v1/auth/token`) requieren autenticación mediante **JWT Bearer token**.
+All endpoints in this API (except `/health` and `/api/v1/auth/token`) require authentication via **JWT Bearer token**.
 
 ### Quick Start
 
-1. **Obtén un token** llamando a `POST /api/v1/auth/token` con tus credenciales:
+1. **Obtain a token** by calling `POST /api/v1/auth/token` with your credentials:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/token \
@@ -48,7 +48,7 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
   -d "username=admin&password=your_password"
 ```
 
-2. **Usa el token** en el header `Authorization` de cada solicitud:
+2. **Use the token** in the `Authorization` header of each request:
 
 ```bash
 curl http://localhost:8000/api/v1/clients/ \
@@ -56,7 +56,7 @@ curl http://localhost:8000/api/v1/clients/ \
 ```
 
 <Info>
-  El Swagger UI en `/docs` tiene soporte integrado para autenticación Bearer. Haz clic en el botón **Authorize** e ingresa tu token.
+  The Swagger UI at `/docs` has built-in Bearer authentication support. Click the **Authorize** button and enter your token.
 </Info>
 
 ## Interactive Documentation
@@ -99,7 +99,7 @@ The API provides the following resource endpoints:
 
 ### Authentication
 
-- **POST** `/api/v1/auth/token` — Obtener JWT Bearer token (no requiere auth previa)
+- **POST** `/api/v1/auth/token` — Obtain a JWT Bearer token (no prior auth required)
 
 ### Clients
 

@@ -5,7 +5,7 @@ description: Authenticate with API credentials to receive a JWT Bearer token for
 
 # Login — Obtain Access Token
 
-Autentica con las credenciales de la API y recibe un token JWT que debes incluir en todas las solicitudes a endpoints protegidos.
+Authenticate with your API credentials to receive a signed JWT token. Include this token in every subsequent request to protected endpoints.
 
 ## Endpoint
 
@@ -14,7 +14,7 @@ POST /api/v1/auth/token
 ```
 
 <Info>
-  Este endpoint usa **form-data** (no JSON). El campo `Content-Type` debe ser `application/x-www-form-urlencoded`.
+  This endpoint accepts **form-data**, not JSON. The `Content-Type` must be `application/x-www-form-urlencoded`.
 </Info>
 
 ## Request
@@ -22,11 +22,11 @@ POST /api/v1/auth/token
 ### Form Fields
 
 <ParamField body="username" type="string" required>
-  Nombre de usuario de la API. Configurado mediante la variable de entorno `API_USERNAME`.
+  API username. Configured via the `API_USERNAME` environment variable.
 </ParamField>
 
 <ParamField body="password" type="string" required>
-  Contraseña en texto plano. Se valida contra el hash bcrypt almacenado en `API_PASSWORD_HASH`.
+  Plain-text password. Validated against the bcrypt hash stored in `API_PASSWORD_HASH`.
 </ParamField>
 
 ## Response
@@ -41,11 +41,11 @@ POST /api/v1/auth/token
 ```
 
 <ResponseField name="access_token" type="string">
-  Token JWT firmado con HS256. Válido por `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` minutos (por defecto **60 minutos**).
+  HS256-signed JWT token. Valid for `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` minutes (default: **60 minutes**).
 </ResponseField>
 
 <ResponseField name="token_type" type="string">
-  Siempre `"bearer"`. Indica el esquema para el header `Authorization`.
+  Always `"bearer"`. Indicates the scheme to use in the `Authorization` header.
 </ResponseField>
 
 ### 401 Unauthorized — Invalid Credentials
@@ -57,12 +57,12 @@ POST /api/v1/auth/token
 ```
 
 <Warning>
-  Tras un 401, verifica que las variables `API_USERNAME` y `API_PASSWORD_HASH` en tu `.env` sean correctas.
+  On a 401, verify that `API_USERNAME` and `API_PASSWORD_HASH` in your `.env` are correct.
 </Warning>
 
-## Usage — Using the Token
+## Using the Token
 
-Incluye el token en el encabezado `Authorization` de todas las solicitudes a endpoints protegidos:
+Include the token in the `Authorization` header of every request to a protected endpoint:
 
 ```
 Authorization: Bearer <access_token>
@@ -73,13 +73,13 @@ Authorization: Bearer <access_token>
 <CodeGroup>
 
 ```bash curl
-# 1. Obtener el token
+# 1. Obtain the token
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=admin&password=your_password" \
   | jq -r '.access_token')
 
-# 2. Usar el token en una solicitud protegida
+# 2. Use the token in a protected request
 curl http://localhost:8000/api/v1/clients/ \
   -H "Authorization: Bearer $TOKEN"
 ```
@@ -141,28 +141,28 @@ async function callProtectedEndpoint(token) {
                     │
                     ▼
          ┌─────────────────────┐
-         │  Verifica credenciales│
+         │  Validate credentials│
          │  (bcrypt hash check) │
          └──────────┬──────────┘
-                    │ JWT firmado (HS256)
+                    │ Signed JWT (HS256)
                     ▼
          ┌─────────────────────┐
-         │  access_token       │  ← válido por 60 min (configurable)
+         │  access_token       │  ← valid for 60 min (configurable)
          └──────────┬──────────┘
                     │
-                    ▼ (cada request protegido)
+                    ▼ (each protected request)
          Authorization: Bearer <token>
                     │
                     ▼
          ┌─────────────────────┐
-         │  get_current_user   │  ← dependency en FastAPI
-         │  (valida el JWT)    │
+         │  get_current_user   │  ← FastAPI dependency
+         │  (validates JWT)    │
          └─────────────────────┘
 ```
 
 ## Token Expiry
 
-Cuando el token expira, todos los endpoints protegidos devuelven:
+When a token expires, all protected endpoints return:
 
 ```json
 {
@@ -170,20 +170,20 @@ Cuando el token expira, todos los endpoints protegidos devuelven:
 }
 ```
 
-Con el header:
+With the response header:
 ```
 WWW-Authenticate: Bearer
 ```
 
-Simplemente solicita un nuevo token llamando a este endpoint nuevamente.
+Simply request a new token by calling this endpoint again.
 
 ## Related
 
 <CardGroup cols={2}>
   <Card title="Authentication Guide" icon="key" href="/authentication">
-    Guía completa de autenticación JWT y API key
+    Complete guide to JWT and API key authentication
   </Card>
   <Card title="Environment Variables" icon="gear" href="/deployment/environment">
-    Configurar JWT_SECRET_KEY y credenciales de API
+    Configure JWT_SECRET_KEY and API credentials
   </Card>
 </CardGroup>
