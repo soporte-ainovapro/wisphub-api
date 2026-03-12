@@ -6,14 +6,32 @@ This repository contains a high-performance RESTful API built with FastAPI. It s
 
 ## Architecture & Core Capabilities
 
-The architecture is designed to mitigate the inherent load placed on external services by conversational bots, reducing latency and preventing rate-limiting on the WispHub API.
+The API is structured following **Clean Architecture / Domain-Driven Design (DDD)** principles, aligned with its sibling project `factus-api`. The application is organized into three clear layers:
 
-*   **JWT Authentication:** Stateless Bearer token authentication (JSON Web Tokens, HS256). All business-logic routes require a valid token issued by `POST /api/v1/auth/token`. The `/health` endpoint remains public for load-balancer probes.
-*   **In-Memory Caching System:** Implements Least Recently Used (LRU) caching via `async_lru` for resource-intensive data retrieval operations. The global client list and available internet plans are cached in RAM with custom Time-To-Live (TTL) strategies (5 and 15 minutes respectively), effectively eliminating repeated network roundtrips and dropping sub-second response queries to under 5 milliseconds.
-*   **Flexible Client Discovery:** Provides specialized search routes that leverage partial string matching when exact identifiers (Document ID or Phone Number) are unavailable, enabling robust entity resolution from unstructured conversational input.
-*   **Algorithmic Identity Verification:** Implements the `POST /verify` endpoint, a security mechanism that validates ownership logic by comparing incoming, loosely formatted billing and address data against the pristine WispHub database records.
-*   **Dynamic Profiling & Patching:** Enables on-the-fly database updates (`PUT`) to enrich client profiles with missing critical information (such as missing documents or phone numbers extracted during bot interaction).
-*   **Exception Handling Standard:** Features a unified JSON payload structure (`BackendResponse`) mapped over the standard Pydantic validation workflow and HTTP error status codes, providing a consistent consumption interface for frontend architectures.
+```
+app/
+├── domain/
+│   ├── models/         # Pydantic models (data contracts)
+│   ├── interfaces/     # Abstract gateway interfaces (ABC)
+│   └── exceptions.py   # Domain-level custom exceptions
+├── infrastructure/
+│   └── gateways/       # Concrete WispHub HTTP implementations
+├── api/
+│   └── v1/
+│       └── endpoints/  # FastAPI route handlers (inject gateways via Depends)
+└── core/               # Settings and configuration
+```
+
+**Why this architecture?**
+- **Testability:** Endpoints inject concrete gateway instances via `Depends()`, making it trivial to mock any gateway in tests without patching network calls.
+- **Low coupling:** The API layer only depends on abstract interfaces — not on WispHub HTTP specifics. If WispHub changes, only the gateway implementation needs updating.
+- **Consistency:** All Baiji microservices (`factus-api`, `wisphub-api`) share the same architecture, reducing cognitive load when switching between projects.
+
+*   **Static Internal Authentication:** Secures internal backend communication utilizing a shared `X-API-Key` header mechanism.
+*   **In-Memory Caching System:** Implements LRU caching via `async_lru` for resource-intensive data retrieval with TTL strategies (5 mins for clients, 15 mins for plans).
+*   **Flexible Client Discovery:** Provides specialized search routes that leverage partial string matching when exact identifiers are unavailable.
+*   **Algorithmic Identity Verification:** Implements `POST /verify`, which validates ownership by comparing incoming billing data against WispHub database records.
+*   **Exception Handling Standard:** Consistent `{"detail": "..."}` error responses via global exception handlers.
 
 ## Technology Stack
 
@@ -36,82 +54,27 @@ WISPHUB_NET_KEY=<Your_WispHub_API_Key>
 WISPHUB_NET_HOST=https://api.wisphub.net
 MAX_ACTIVE_TICKETS_PER_ZONE=3
 
-# JWT Authentication
-JWT_SECRET_KEY=<random-hex-secret-32-bytes>
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
-API_USERNAME=admin
-API_PASSWORD_HASH=<bcrypt-hash-of-the-admin-password>
-```
-
-To generate the values for `JWT_SECRET_KEY` and `API_PASSWORD_HASH`, run:
-
-```bash
-python3 -c "
-import secrets
-from passlib.context import CryptContext
-print('JWT_SECRET_KEY=' + secrets.token_hex(32))
-print('API_PASSWORD_HASH=' + CryptContext(schemes=['bcrypt']).hash('your-password-here'))
-"
-```
-
-### 2. Docker Deployment (Production)
-
-The production environment is containerized using Docker, leveraging Gunicorn to manage Uvicorn worker processes to ensure maximum async throughput.
-
-```bash
-docker build -t wisphubapi:latest .
-docker run -d --name wisphub_api_server -p 8000:8000 --env-file .env wisphubapi:latest
-```
-
-The self-documenting OpenAPI schema will be accessible at: `http://localhost:8000/docs`.
-
-### 3. Local Development
-
-To set up a local development environment, establish a virtual execution environment and install both application and testing dependencies.
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# Autenticación Interna (Estática)
+WISPHUB_INTERNAL_API_KEY=<Shared_Secret_Between_Backends>
 ```
 
 ## Authentication
 
-All protected endpoints require a Bearer JWT token in the `Authorization` header.
-
-### Obtaining a Token
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/token \
-  -d "username=admin&password=<your-password>"
-```
-
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
+All protected endpoints require an `X-API-Key` header with the configured shared secret.
 
 ### Using the Token
 
 Include the token in all subsequent requests:
 
 ```bash
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/clients/
+curl -H "X-API-Key: <your-internal-secret>" http://localhost:8000/api/clients/
 ```
-
-Tokens expire after `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` minutes (default: 60). Re-authenticate to obtain a new token.
 
 ### Public Endpoints (No Authentication Required)
 
 | Endpoint | Description |
 |---|---|
 | `GET /health` | Service health check |
-| `POST /api/v1/auth/token` | Obtain a JWT access token |
 
 ## Testing Methodology
 
@@ -139,28 +102,28 @@ locust -f locustfile.py --host=http://localhost:8000
 ## API Endpoints Reference
 
 ### Authentication Module
-*   `POST /api/v1/auth/token`: Authenticates with `username` + `password` form fields and returns a signed JWT Bearer token. **Public — no prior token required.**
+*   `POST /api/auth/token`: Authenticates with `username` + `password` form fields and returns a signed JWT Bearer token. **Public — no prior token required.**
 
 ### Clients Module
-*   `GET /api/v1/clients/`: Retrieves the globally cached client pool.
-*   `GET /api/v1/clients/by-document/{document_id}`: Performs exact matching lookup by national ID numeric strings.
-*   `GET /api/v1/clients/by-phone/{phone_number}`: Performs explicit client search by registered telephone strings.
-*   `GET /api/v1/clients/by-service-id/{service_id}`: Retrieves client information using the WispHub unique service identifier.
-*   `GET /api/v1/clients/search?q={query}`: Initiates a fuzzy search query against the WispHub index.
-*   `PUT /api/v1/clients/{service_id}`: Updates core profile attributes (Document, Phone) on the remote WispHub server.
-*   `POST /api/v1/clients/{service_id}/verify`: Evaluates user-provided data parameters (name, address, plan name, plan price) against the validated WispHub database profile. Requires at least 3 exact matches.
-*   `POST /api/v1/clients/resolve`: Combines search and verification in a single endpoint ("Single-pass"). Locates a client without a `service_id` using at least 3 exact matches across name, address, plan name, or plan price.
+*   `GET /api/clients/`: Retrieves the globally cached client pool.
+*   `GET /api/clients/by-document/{document_id}`: Performs exact matching lookup by national ID numeric strings.
+*   `GET /api/clients/by-phone/{phone_number}`: Performs explicit client search by registered telephone strings.
+*   `GET /api/clients/by-service-id/{service_id}`: Retrieves client information using the WispHub unique service identifier.
+*   `GET /api/clients/search?q={query}`: Initiates a fuzzy search query against the WispHub index.
+*   `PUT /api/clients/{service_id}`: Updates core profile attributes (Document, Phone) on the remote WispHub server.
+*   `POST /api/clients/{service_id}/verify`: Evaluates user-provided data parameters (name, address, plan name, plan price) against the validated WispHub database profile. Requires at least 3 exact matches.
+*   `POST /api/clients/resolve`: Combines search and verification in a single endpoint ("Single-pass"). Locates a client without a `service_id` using at least 3 exact matches across name, address, plan name, or plan price.
 
 ### Internet Plans Module
-*   `GET /api/v1/internet-plans/`: Acquires the synchronized, globally cached dataset of all available provider internet plans.
-*   `GET /api/v1/internet-plans/{plan_id}`: Locates and structures deep attributes (Download/Upload limitations, network type) of a specified plan identifier.
+*   `GET /api/internet-plans/`: Acquires the synchronized, globally cached dataset of all available provider internet plans.
+*   `GET /api/internet-plans/{plan_id}`: Locates and structures deep attributes (Download/Upload limitations, network type) of a specified plan identifier.
 
 ### Technical Tickets Module
-*   `POST /api/v1/tickets/`: Instantiates a standardized escalation sub-routine inside WispHub containing structured debugging metadata.
-*   `GET /api/v1/tickets/subjects`: Returns all valid ticket subjects grouped by priority level.
-*   `GET /api/v1/tickets/zone-blocked/{zone_id}`: Checks whether a zone has exceeded the maximum number of open tickets.
-*   `GET /api/v1/tickets/{ticket_id}`: Retrieves the full details of a technical support ticket by its unique ID.
+*   `POST /api/tickets/`: Instantiates a standardized escalation sub-routine inside WispHub containing structured debugging metadata.
+*   `GET /api/tickets/subjects`: Returns all valid ticket subjects grouped by priority level.
+*   `GET /api/tickets/zone-blocked/{zone_id}`: Checks whether a zone has exceeded the maximum number of open tickets.
+*   `GET /api/tickets/{ticket_id}`: Retrieves the full details of a technical support ticket by its unique ID.
 
 ### Network & Diagnostics Module
-*   `POST /api/v1/{service_id}/ping/`: Initiates an asynchronous ICMP PING diagnostic task against a client's equipment.
-*   `GET /api/v1/ping/{task_id}/`: Retrieves the result of a previously initialized PING task.
+*   `POST /api/{service_id}/ping/`: Initiates an asynchronous ICMP PING diagnostic task against a client's equipment.
+*   `GET /api/ping/{task_id}/`: Retrieves the result of a previously initialized PING task.

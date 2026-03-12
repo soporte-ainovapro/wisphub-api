@@ -1,7 +1,11 @@
+"""
+Tests now target WispHubInternetPlanGateway directly (mocking HTTP calls)
+instead of the legacy internet_plans_service module.
+"""
 import pytest
 import respx
 import httpx
-from app.services.internet_plans_service import list_internet_plans, get_plan_type
+from app.infrastructure.gateways.wisphub_internet_plan_gateway import WispHubInternetPlanGateway
 from app.core.config import settings
 
 MOCK_PLANS_LIST = {
@@ -11,16 +15,22 @@ MOCK_PLANS_LIST = {
     ]
 }
 
+def _make_gateway():
+    return WispHubInternetPlanGateway(
+        base_url=settings.WISPHUB_NET_HOST,
+        api_key=settings.WISPHUB_NET_KEY,
+    )
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_list_internet_plans_success():
     respx.get(
-        url__startswith=settings.PLANS_URL
+        url__startswith=settings.WISPHUB_NET_HOST
     ).mock(return_value=httpx.Response(200, json=MOCK_PLANS_LIST))
-    
-    import app.services.internet_plans_service as ips
-    plans = await list_internet_plans()
-    
+
+    gateway = _make_gateway()
+    plans = await gateway.list_internet_plans()
+
     assert plans is not None
     assert len(plans) == 2
     assert plans[0].plan_id == 10
@@ -28,14 +38,12 @@ async def test_list_internet_plans_success():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_plan_type():
+async def test_get_pppoe_plan_not_found():
+    """Tests that a 500 response from WispHub returns None for plan details."""
     respx.get(
-        url__startswith=settings.PLANS_URL
-    ).mock(return_value=httpx.Response(200, json=MOCK_PLANS_LIST))
-    
-    import app.services.internet_plans_service as ips
-    plan_type = await get_plan_type(20)
-    assert plan_type == "SIMPLE QUEUE"
-    
-    plan_type_invalid = await get_plan_type(999)
-    assert plan_type_invalid is None
+        url__startswith=settings.WISPHUB_NET_HOST
+    ).mock(return_value=httpx.Response(500, json={}))
+
+    gateway = _make_gateway()
+    plan = await gateway.get_pppoe_plan(999)
+    assert plan is None

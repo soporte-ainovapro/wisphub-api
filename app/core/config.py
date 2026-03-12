@@ -24,14 +24,8 @@ class Settings(BaseSettings):
     # Días hábiles para la resolución de un ticket
     MAX_TICKET_RESOLUTION_DAYS: int = 3
 
-    # --- JWT Authentication ---
-    JWT_SECRET_KEY: str
-    JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-
-    # API credentials (single user model)
-    API_USERNAME: str
-    API_PASSWORD_HASH: str
+    # Clave interna estática para autenticarse contra WispHub API (Frontend -> Middleware)
+    WISPHUB_INTERNAL_API_KEY: str
 
     @property
     def TICKETS_URL(self) -> str:

@@ -1,15 +1,11 @@
-from app.schemas.responses.response_types import ResponseType
-from app.schemas.responses.response_actions import ResponseAction, ClientAction
-from app.schemas.responses.backend_response import BackendResponse
+from fastapi import HTTPException
+from app.domain.models.responses.response_actions import ResponseAction, ClientAction
 
 
 def build_client_response(client):
     if not client:
-        return BackendResponse.info(
-            action=ClientAction.NOT_FOUND
+        raise HTTPException(
+            status_code=404,
+            detail=ClientAction.NOT_FOUND.value if hasattr(ClientAction.NOT_FOUND, 'value') else "Client not found"
         )
-
-    return BackendResponse.success(
-        action=ClientAction.FOUND,
-        data=client
-    )
+    return client

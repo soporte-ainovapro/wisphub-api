@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# El código lo provee el volumen montado — no se necesita COPY . .
+# De todas formas creamos el usuario para consistencia con producción
+RUN adduser -u 5678 --disabled-password --gecos "" wisphub && chown -R wisphub /app
+USER wisphub
+
+EXPOSE 8000
+
+# --reload detecta cambios en el volumen montado automáticamente
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -1,14 +1,20 @@
 import pytest
 import pytest_asyncio
+import asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.core.security import create_access_token
+from app.core.config import settings
 
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for the whole test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 def _get_auth_headers() -> dict:
-    """Generate a valid Bearer token for tests using a known test secret."""
-    token = create_access_token(data={"sub": "admin"})
-    return {"Authorization": f"Bearer {token}"}
+    """Generate a valid API Key Header for testing authenticated routes."""
+    return {"X-API-Key": settings.WISPHUB_INTERNAL_API_KEY}
 
 
 @pytest_asyncio.fixture

@@ -1,6 +1,8 @@
 from app.utils.responses import build_client_response
-from app.schemas.clients import ClientResponse
-from app.schemas.responses.response_actions import ResponseAction, ClientAction
+from app.domain.models.clients import ClientResponse
+from app.domain.models.responses.response_actions import ResponseAction, ClientAction
+from fastapi import HTTPException
+import pytest
 
 def test_build_client_response_found():
     # Creamos un cliente de prueba
@@ -23,14 +25,9 @@ def test_build_client_response_found():
     )
     
     response = build_client_response(client)
-    assert response.ok is True
-    assert response.type == "success"
-    assert response.action == ClientAction.FOUND
-    assert response.data == client
+    assert response == client
     
 def test_build_client_response_not_found():
-    response = build_client_response(None)
-    assert response.ok is True
-    assert response.type == "info"
-    assert response.action == ClientAction.NOT_FOUND
-    assert response.data is None
+    with pytest.raises(HTTPException) as excinfo:
+        build_client_response(None)
+    assert excinfo.value.status_code == 404

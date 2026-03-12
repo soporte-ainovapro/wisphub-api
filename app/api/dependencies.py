@@ -1,16 +1,18 @@
-from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader
+from app.core.config import settings
 
-from app.core.security import decode_access_token
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
-# Points to the token endpoint so FastAPI's OpenAPI UI can auto-authenticate.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
     """
-    FastAPI dependency that extracts and validates the Bearer token from the
-    Authorization header. Returns the authenticated username on success.
-    Raises HTTP 401 if the token is missing, invalid, or expired.
+    FastAPI dependency that extracts and validates the API Key from the
+    X-API-Key header. Returns the key on success.
+    Raises HTTP 403 if the token is missing or invalid.
     """
-    return decode_access_token(token)
+    if api_key != settings.WISPHUB_INTERNAL_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Invalid API Key",
+        )
+    return api_key

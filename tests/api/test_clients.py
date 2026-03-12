@@ -1,7 +1,6 @@
 import pytest
-from unittest.mock import patch
-from app.schemas.clients import ClientResponse
-from app.schemas.responses.response_actions import ResponseAction, ClientAction
+from unittest.mock import patch, AsyncMock
+from app.domain.models.clients import ClientResponse
 
 MOCK_API_CLIENT = ClientResponse(
     service_id=1,
@@ -22,179 +21,219 @@ MOCK_API_CLIENT = ClientResponse(
     technician_id=1
 )
 
+GATEWAY = "app.infrastructure.gateways.wisphub_client_gateway.WispHubClientGateway"
+
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_document")
+@patch(f"{GATEWAY}.get_client_by_document", new_callable=AsyncMock)
 async def test_get_client_by_document_endpoint_found(mock_get_client, auth_client):
     mock_get_client.return_value = MOCK_API_CLIENT
-    
-    response = await auth_client.get("/api/v1/clients/by-document/111111")
+
+    response = await auth_client.get("/api/clients/by-document/111111")
     assert response.status_code == 200
-    
+
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.FOUND
-    assert data["data"]["name"] == "John Doe"
+    assert data["name"] == "John Doe"
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_document")
+@patch(f"{GATEWAY}.get_client_by_document", new_callable=AsyncMock)
 async def test_get_client_by_document_endpoint_not_found(mock_get_client, auth_client):
     mock_get_client.return_value = None
-    
-    response = await auth_client.get("/api/v1/clients/by-document/111111")
-    assert response.status_code == 200
-    
+
+    response = await auth_client.get("/api/clients/by-document/111111")
+    assert response.status_code == 404
+
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.NOT_FOUND
-    assert data["data"] is None
+    assert "detail" in data
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_clients")
+@patch(f"{GATEWAY}.get_clients", new_callable=AsyncMock)
 async def test_get_clients_endpoint_success(mock_get_clients, auth_client):
     mock_get_clients.return_value = [MOCK_API_CLIENT]
-    
-    response = await auth_client.get("/api/v1/clients/")
+
+    response = await auth_client.get("/api/clients/")
     assert response.status_code == 200
-    
+
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.LISTED
-    assert len(data["data"]) == 1
+    assert isinstance(data, list)
+    assert len(data) == 1
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.fetch_clients_by_query")
+@patch(f"{GATEWAY}.fetch_clients_by_query", new_callable=AsyncMock)
 async def test_search_clients_endpoint_success(mock_fetch, auth_client):
     mock_fetch.return_value = [MOCK_API_CLIENT]
-    response = await auth_client.get("/api/v1/clients/search?q=John")
+    response = await auth_client.get("/api/clients/search?q=John")
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.LISTED
-    assert len(data["data"]) == 1
-    assert data["data"][0]["name"] == "John Doe"
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["name"] == "John Doe"
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.fetch_clients_by_query")
+@patch(f"{GATEWAY}.fetch_clients_by_query", new_callable=AsyncMock)
 async def test_search_clients_endpoint_not_found(mock_fetch, auth_client):
     mock_fetch.return_value = []
-    
-    response = await auth_client.get("/api/v1/clients/search?q=Ghost")
+
+    response = await auth_client.get("/api/clients/search?q=Ghost")
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.NOT_FOUND
-    assert data["data"] == []
+    assert isinstance(data, list)
+    assert len(data) == 0
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.update_client_profile")
+@patch(f"{GATEWAY}.update_client_profile", new_callable=AsyncMock)
 async def test_update_client_endpoint_success(mock_update, auth_client):
     mock_update.return_value = True
-    
+
     payload = {
         "document": "55555",
-        "phone": "300123"
+        "phone": "300123",
+        "address": "Nueva Dirección"
     }
-    response = await auth_client.put("/api/v1/clients/101", json=payload)
+    response = await auth_client.put("/api/clients/101", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.UPDATED
+    assert data["status"] == "ok"
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.update_client_profile")
+@patch(f"{GATEWAY}.update_client_profile", new_callable=AsyncMock)
+async def test_update_client_all_new_fields(mock_update, auth_client):
+    """Verifica que los nuevos campos se traducen correctamente al payload de WispHub."""
+    mock_update.return_value = True
+
+    payload = {
+        "name": "Juan",
+        "last_name": "García Ruiz",
+        "locality": "Chapinero",
+        "city": "Bogotá",
+        "balance": "-50000",
+    }
+    response = await auth_client.put("/api/clients/101", json=payload)
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+    # Verifica que el gateway recibió los nombres de campo de WispHub, no los nuestros
+    called_payload = mock_update.call_args[0][1]
+    assert "nombre" in called_payload
+    assert "apellidos" in called_payload
+    assert "localidad" in called_payload
+    assert "ciudad" in called_payload
+    assert "saldo" in called_payload
+    assert called_payload["nombre"] == "Juan"
+    assert called_payload["apellidos"] == "García Ruiz"
+    assert called_payload["saldo"] == "-50000"
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.update_client_profile", new_callable=AsyncMock)
+async def test_update_client_field_mapping(mock_update, auth_client):
+    """Verifica el mapeo exacto de todos los campos Python → WispHub."""
+    mock_update.return_value = True
+
+    payload = {
+        "name": "Ana",
+        "last_name": "López",
+        "document": "98765432",
+        "address": "Av. Siempreviva 742",
+        "locality": "Springfield",
+        "city": "Medellín",
+        "phone": "3109876543",
+        "balance": "20000",
+    }
+    response = await auth_client.put("/api/clients/202", json=payload)
+    assert response.status_code == 200
+
+    called_payload = mock_update.call_args[0][1]
+    expected_keys = {"nombre", "apellidos", "cedula", "direccion", "localidad", "ciudad", "telefono", "saldo"}
+    assert set(called_payload.keys()) == expected_keys
+    # Nuestros nombres de campo Python NO deben aparecer en el payload enviado a WispHub
+    python_keys = {"name", "last_name", "document", "address", "locality", "city", "phone", "balance"}
+    assert not python_keys.intersection(set(called_payload.keys()))
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.update_client_profile", new_callable=AsyncMock)
 async def test_update_client_endpoint_failed(mock_update, auth_client):
     mock_update.return_value = False
-    
+
     payload = {
         "document": "9999"
     }
-    response = await auth_client.put("/api/v1/clients/999", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.put("/api/clients/999", json=payload)
+    assert response.status_code == 400
     data = response.json()
-    assert data["ok"] is False
-    assert data["action"] == ClientAction.UPDATE_FAILED
+    assert "detail" in data
 
 @pytest.mark.asyncio
 async def test_update_client_endpoint_empty(auth_client):
-    # No patching needed since it should fail before touching WispHub
     payload = {}
-    response = await auth_client.put("/api/v1/clients/101", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.put("/api/clients/101", json=payload)
+    assert response.status_code == 400
     data = response.json()
-    assert data["action"] == ClientAction.UPDATE_FAILED
+    assert "detail" in data
+
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_service_id")
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
 async def test_verify_client_identity_success(mock_get, auth_client):
-    # Set up mock with plan price so it effectively matches.
     mock_client = MOCK_API_CLIENT.model_copy()
     mock_client.internet_plan_price = 40000.0
     mock_get.return_value = mock_client
-    
+
     payload = {
         "name": "John Doe",
         "address": "Some Address",
         "internet_plan_price": 40000.0
     }
-    response = await auth_client.post("/api/v1/clients/1/verify", json=payload)
+    response = await auth_client.post("/api/clients/1/verify", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.VERIFIED
-    assert data["data"]["is_valid"] is True
-    assert "name" in data["data"]["matched_fields"]
-    assert "address" in data["data"]["matched_fields"]
-    assert "internet_plan_price" in data["data"]["matched_fields"]
+    assert data["is_valid"] is True
+    assert "name" in data["matched_fields"]
+    assert "address" in data["matched_fields"]
+    assert "internet_plan_price" in data["matched_fields"]
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_service_id")
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
 async def test_verify_client_identity_failed_mismatch(mock_get, auth_client):
     mock_client = MOCK_API_CLIENT.model_copy()
     mock_client.internet_plan_price = 40000.0
     mock_get.return_value = mock_client
-    
+
     payload = {
         "name": "John Doe",
         "address": "Some Address",
         "internet_plan_price": 100.0  # Incorrect price
     }
-    response = await auth_client.post("/api/v1/clients/1/verify", json=payload)
+    response = await auth_client.post("/api/clients/1/verify", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.VERIFICATION_FAILED
-    assert data["data"]["is_valid"] is False
-    assert "name" in data["data"]["matched_fields"]
-    assert "address" in data["data"]["matched_fields"]
-    assert "internet_plan_price" not in data["data"]["matched_fields"]
+    assert data["is_valid"] is False
+    assert "name" in data["matched_fields"]
+    assert "address" in data["matched_fields"]
+    assert "internet_plan_price" not in data["matched_fields"]
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_service_id")
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
 async def test_verify_client_identity_not_enough_fields(mock_get, auth_client):
     mock_get.return_value = MOCK_API_CLIENT.model_copy()
-    
+
     payload = {"address": "some", "name": "John Doe"}  # Solo 2 campos
-    response = await auth_client.post("/api/v1/clients/1/verify", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.post("/api/clients/1/verify", json=payload)
+    assert response.status_code == 400
     data = response.json()
-    assert data["ok"] is False
-    assert data["action"] == ClientAction.VERIFICATION_FAILED
-    assert "Se requieren al menos 3 campos" in data["message"]
+    assert "Se requieren al menos 3 campos" in data["detail"]
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.get_client_by_service_id")
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
 async def test_verify_client_identity_not_found(mock_get, auth_client):
     mock_get.return_value = None
-    
+
     payload = {"name": "Test", "address": "Some", "internet_plan_price": 40.0}
-    response = await auth_client.post("/api/v1/clients/999/verify", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.post("/api/clients/999/verify", json=payload)
+    assert response.status_code == 404
     data = response.json()
-    assert data["ok"] is False
-    assert data["action"] == ClientAction.NOT_FOUND
+    assert "detail" in data
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.fetch_clients_by_query")
+@patch(f"{GATEWAY}.fetch_clients_by_query", new_callable=AsyncMock)
 async def test_resolve_client_identity_success(mock_fetch, auth_client):
     mock_client = MOCK_API_CLIENT.model_copy()
     mock_client.internet_plan_price = 40000.0
@@ -205,15 +244,13 @@ async def test_resolve_client_identity_success(mock_fetch, auth_client):
         "address": "Some Address",
         "internet_plan_price": 40000.0
     }
-    response = await auth_client.post("/api/v1/clients/resolve", json=payload)
+    response = await auth_client.post("/api/clients/resolve", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["ok"] is True
-    assert data["action"] == ClientAction.VERIFIED
-    assert data["data"]["service_id"] == 1
+    assert data["service_id"] == 1
 
 @pytest.mark.asyncio
-@patch("app.api.v1.clients.fetch_clients_by_query")
+@patch(f"{GATEWAY}.fetch_clients_by_query", new_callable=AsyncMock)
 async def test_resolve_client_identity_not_found(mock_fetch, auth_client):
     mock_fetch.return_value = []
 
@@ -222,11 +259,10 @@ async def test_resolve_client_identity_not_found(mock_fetch, auth_client):
         "address": "Unknown",
         "internet_plan_price": 100.0
     }
-    response = await auth_client.post("/api/v1/clients/resolve", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.post("/api/clients/resolve", json=payload)
+    assert response.status_code == 404
     data = response.json()
-    assert data["ok"] is False
-    assert data["action"] == ClientAction.NOT_FOUND
+    assert "detail" in data
 
 @pytest.mark.asyncio
 async def test_resolve_client_identity_not_enough_fields(auth_client):
@@ -234,9 +270,7 @@ async def test_resolve_client_identity_not_enough_fields(auth_client):
         "name": "John Doe",
         "address": "Some Address"
     }
-    response = await auth_client.post("/api/v1/clients/resolve", json=payload)
-    assert response.status_code == 200
+    response = await auth_client.post("/api/clients/resolve", json=payload)
+    assert response.status_code == 400
     data = response.json()
-    assert data["ok"] is False
-    assert data["action"] == ClientAction.VERIFICATION_FAILED
-    assert "Se requieren al menos 3 campos" in data["message"]
+    assert "Se requieren al menos 3 campos" in data["detail"]

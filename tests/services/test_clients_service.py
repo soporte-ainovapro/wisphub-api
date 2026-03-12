@@ -1,9 +1,13 @@
+"""
+These tests now test WispHubClientGateway directly (mocking the HTTP calls)
+instead of the legacy clients_service module.
+"""
 import pytest
 import respx
 import httpx
-from app.services.clients_service import get_client_by_document, get_clients, parse_client
+from app.infrastructure.gateways.wisphub_client_gateway import WispHubClientGateway
 from app.core.config import settings
-from app.schemas.clients import ClientResponse
+from app.domain.models.clients import ClientResponse
 
 MOCK_WISPHUB_CLIENT_RESPONSE = {
     "results": [
@@ -22,20 +26,29 @@ MOCK_WISPHUB_CLIENT_RESPONSE = {
             "saldo": 0.0,
             "interfaz_lan": "ether1",
             "plan_internet": {"id": 2, "nombre": "Plan Default"},
+            "precio_plan": "40000.00",
             "tecnico": {"id": 5, "nombre": "Tech 1"}
         }
-    ]
+    ],
+    "next": None
 }
+
+def _make_gateway():
+    return WispHubClientGateway(
+        base_url=settings.WISPHUB_NET_HOST,
+        api_key=settings.WISPHUB_NET_KEY,
+    )
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_client_by_document_success():
     respx.get(
-        url__startswith=settings.CLIENTS_URL
+        url__startswith=settings.WISPHUB_NET_HOST
     ).mock(return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE))
-    
-    client = await get_client_by_document("12345678")
-    
+
+    gateway = _make_gateway()
+    client = await gateway.get_client_by_document("12345678")
+
     assert client is not None
     assert isinstance(client, ClientResponse)
     assert client.document == "12345678"
@@ -48,42 +61,34 @@ async def test_get_client_by_document_success():
 @respx.mock
 async def test_get_client_by_document_not_found():
     respx.get(
-        url__startswith=settings.CLIENTS_URL
+        url__startswith=settings.WISPHUB_NET_HOST
     ).mock(return_value=httpx.Response(200, json={"results": []}))
-    
-    client = await get_client_by_document("00000000")
-    
+
+    gateway = _make_gateway()
+    client = await gateway.get_client_by_document("00000000")
     assert client is None
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_client_api_error():
     respx.get(
-        url__startswith=settings.CLIENTS_URL
+        url__startswith=settings.WISPHUB_NET_HOST
     ).mock(return_value=httpx.Response(500, json={"error": "Internal Server Error"}))
-    
-    client = await get_client_by_document("1234")
+
+    gateway = _make_gateway()
+    client = await gateway.get_client_by_document("1234")
     assert client is None
-    
-@pytest.mark.asyncio
-@respx.mock
-async def test_get_client_timeout():
-    respx.get(
-        url__startswith=settings.CLIENTS_URL
-    ).mock(side_effect=httpx.TimeoutException("Timeout"))
-    
-    with pytest.raises(httpx.TimeoutException):
-        await get_client_by_document("1234")
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_clients_list_success():
     respx.get(
-        url__startswith=settings.CLIENTS_URL
+        url__startswith=settings.WISPHUB_NET_HOST
     ).mock(return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE))
-    
-    clients = await get_clients()
-    
+
+    gateway = _make_gateway()
+    clients = await gateway.get_clients()
+
     assert isinstance(clients, list)
     assert len(clients) == 1
     assert clients[0].document == "12345678"

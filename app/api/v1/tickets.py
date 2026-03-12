@@ -1,23 +1,22 @@
-from fastapi import APIRouter, Depends, Path, Body
+from fastapi import APIRouter, Depends, Path, Body, HTTPException
 from app.services.tickets_service import zone_has_three_open_tickets, create_ticket, get_ticket
-from app.schemas.responses.response_actions import ResponseAction, TicketAction
-from app.schemas.responses.response_types import ResponseType
-from app.schemas.responses.backend_response import BackendResponse
+from app.domain.models.responses.response_actions import ResponseAction, TicketAction
+from app.domain.models.responses.response_types import ResponseType
 from app.core.config import settings
-from app.schemas.tickets import TicketCreate, TicketResponse, TicketCreateRequest
+from app.domain.models.tickets import TicketCreate, TicketResponse, TicketCreateRequest
 from app.utils.ticket_rules import priorities
-from app.api.dependencies import get_current_user
+from app.api.dependencies import verify_api_key
 
 router = APIRouter(tags=["tickets"])
 
 
 @router.post(
-    "/api/v1/tickets",
-    response_model=BackendResponse[TicketResponse | dict]
+    "/api/tickets",
+    response_model=TicketResponse | dict
 )
 async def create_ticket_endpoint(
     request: TicketCreateRequest = Body(...),
-    _: str = Depends(get_current_user)
+    _: str = Depends(verify_api_key)
 ):
     """
     Abre e instancia un nuevo Ticket de Soporte Técnico en WispHub.
@@ -30,9 +29,9 @@ async def create_ticket_endpoint(
     logging.getLogger(__name__).info(f"Zona {request.zone_id} bloqueada: {zone_blocked}")
 
     if zone_blocked:
-        return BackendResponse.info(
-            action=TicketAction.ZONE_LIMIT_REACHED,
-            data={"max_tickets": settings.MAX_ACTIVE_TICKETS_PER_ZONE}
+        raise HTTPException(
+            status_code=400,
+            detail=f"Zona límite alcanzado. Máximo {settings.MAX_ACTIVE_TICKETS_PER_ZONE} tickets."
         )
 
     ticket_create = TicketCreate(
@@ -45,18 +44,16 @@ async def create_ticket_endpoint(
     ticket = await create_ticket(ticket_create)
 
     if not ticket:
-        return BackendResponse.error(
-            action=TicketAction.CREATION_FAILED
+        raise HTTPException(
+            status_code=400,
+            detail=TicketAction.CREATION_FAILED.value if hasattr(TicketAction.CREATION_FAILED, 'value') else "Error creando ticket"
         )
 
-    return BackendResponse.success(
-        action=TicketAction.CREATED,
-        data=ticket
-    )
+    return ticket
 
 
-@router.get("/api/v1/tickets/subjects", response_model=BackendResponse[dict])
-async def get_ticket_subjects(_: str = Depends(get_current_user)):
+@router.get("/api/tickets/subjects", response_model=dict)
+async def get_ticket_subjects(_: str = Depends(verify_api_key)):
     """
     Devuelve todos los asuntos válidos para la creación de tickets en WispHub,
     agrupados por nivel de prioridad. Útil para bots y clientes externos que
@@ -72,11 +69,11 @@ async def get_ticket_subjects(_: str = Depends(get_current_user)):
         },
         "all": all_subjects
     }
-    return BackendResponse.success(action=TicketAction.SUBJECTS_LISTED, data=data)
+    return data
 
 
-@router.get("/api/v1/tickets/zone-blocked/{zone_id}", response_model=BackendResponse[dict])
-async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID de la zona del cliente"), _: str = Depends(get_current_user)):
+@router.get("/api/tickets/zone-blocked/{zone_id}", response_model=dict)
+async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID de la zona del cliente"), _: str = Depends(verify_api_key)):
     """
     Verifica rápidamente si una zona específica ha excedido el límite máximo
     de tickets abiertos en WispHub. 
@@ -84,17 +81,14 @@ async def check_zone_blocked_endpoint(zone_id: int = Path(..., description="ID d
     """
     zone_blocked = await zone_has_three_open_tickets(zone_id)
 
-    return BackendResponse.success(
-        action=TicketAction.FOUND,
-        data={
-            "is_blocked": zone_blocked,
-            "max_tickets": settings.MAX_ACTIVE_TICKETS_PER_ZONE
-        }
-    )
+    return {
+        "is_blocked": zone_blocked,
+        "max_tickets": settings.MAX_ACTIVE_TICKETS_PER_ZONE
+    }
 
 
-@router.get("/api/v1/tickets/{ticket_id}", response_model=BackendResponse[TicketResponse])
-async def get_ticket_endpoint(ticket_id: int = Path(..., description="El identificador único del ticket"), _: str = Depends(get_current_user)):
+@router.get("/api/tickets/{ticket_id}", response_model=TicketResponse)
+async def get_ticket_endpoint(ticket_id: int = Path(..., description="El identificador único del ticket"), _: str = Depends(verify_api_key)):
     """
     Recupera la información completa de un soporte técnico mediante su ID único.
     Extrae elementos esenciales como la fecha de apertura, la prioridad asignada 
@@ -104,11 +98,9 @@ async def get_ticket_endpoint(ticket_id: int = Path(..., description="El identif
     ticket = await get_ticket(ticket_id)
 
     if not ticket:
-        return BackendResponse.info(
-            action=TicketAction.NOT_FOUND
+        raise HTTPException(
+            status_code=404,
+            detail=TicketAction.NOT_FOUND.value if hasattr(TicketAction.NOT_FOUND, 'value') else "No encontrado"
         )
 
-    return BackendResponse.success(
-        action=TicketAction.FOUND,
-        data=ticket
-    )
+    return ticket

@@ -1,20 +1,19 @@
-from fastapi import APIRouter, Body, Depends, Path
+from fastapi import APIRouter, Body, Depends, Path, HTTPException
 from app.services.network_service import ping, get_task__id
-from app.schemas.responses.backend_response import BackendResponse
-from app.schemas.responses.response_actions import ResponseAction, NetworkAction
-from app.schemas.responses.response_types import ResponseType
-from app.schemas.connection_status import ConnectionStatus
-from app.schemas.ping_request import PingRequest
-from app.api.dependencies import get_current_user
+from app.domain.models.responses.response_actions import ResponseAction, NetworkAction
+from app.domain.models.responses.response_types import ResponseType
+from app.domain.models.connection_status import ConnectionStatus
+from app.domain.models.ping_request import PingRequest
+from app.api.dependencies import verify_api_key
 from typing import Dict, Any
 
 router = APIRouter(tags=["network"])
 
-@router.post("/api/v1/{service_id}/ping/", response_model=BackendResponse[Dict[str, Any]])
+@router.post("/api/{service_id}/ping/", response_model=Dict[str, Any])
 async def create_ping(
     service_id: int = Path(..., description="ID del servicio que posee la IP o equipo asignado"),
     body: PingRequest = Body(...),
-    _: str = Depends(get_current_user)
+    _: str = Depends(verify_api_key)
 ):
     """
     Inicia una tarea asíncrona de diagnóstico de red (ICMP PING) dirigida a un equipo cliente.
@@ -28,18 +27,16 @@ async def create_ping(
     )
 
     if not task_id:
-        return BackendResponse.error(
-            action=NetworkAction.PING_FAILED
+        raise HTTPException(
+            status_code=400,
+            detail=NetworkAction.PING_FAILED.value if hasattr(NetworkAction.PING_FAILED, 'value') else "Ping failed"
         )
 
-    return BackendResponse.success(
-        action=NetworkAction.PING_CREATED,
-        data={"task_id": task_id}
-    )
+    return {"task_id": task_id}
 
 
-@router.get("/api/v1/ping/{task_id}/", response_model=BackendResponse[Any])
-async def get_ping_result(task_id: str = Path(..., description="ID de la tarea generada en la creación del Ping"), _: str = Depends(get_current_user)):
+@router.get("/api/ping/{task_id}/", response_model=Any)
+async def get_ping_result(task_id: str = Path(..., description="ID de la tarea generada en la creación del Ping"), _: str = Depends(verify_api_key)):
     """
     Obtiene el resultado resolutivo de una tarea de PING previamente inicializada.
     Interpreta el nivel de pérdida de paquetes de los resultados devueltos por WispHub 
@@ -49,21 +46,13 @@ async def get_ping_result(task_id: str = Path(..., description="ID de la tarea g
     result = await ping(task_id)
 
     if result == ConnectionStatus.error:
-        return BackendResponse.error(
-            action=NetworkAction.PING_FAILED
-        )
+        raise HTTPException(status_code=400, detail="Ping failed")
 
     if result == ConnectionStatus.no_internet:
-        return BackendResponse.info(
-            action=NetworkAction.NO_INTERNET
-        )
+        raise HTTPException(status_code=400, detail="No internet")
 
     if result == ConnectionStatus.intermittent:
-        return BackendResponse.info(
-            action=NetworkAction.INTERMITTENT
-        )
+        raise HTTPException(status_code=400, detail="Intermittent connection")
 
     if result == ConnectionStatus.stable:
-        return BackendResponse.success(
-            action=NetworkAction.STABLE
-        )
+        return {"result": "stable"}
