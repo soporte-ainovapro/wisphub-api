@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from app.api.v1 import router as v1_router
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -8,7 +9,9 @@ from app.api.exception_handlers import validation_exception_handler, http_except
 app = FastAPI(
     title="WispHub API",
     description="API de integración local con WispHub.",
-    version="2.0.0"
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url=None,
 )
 
 # Configuración de CORS
@@ -41,3 +44,33 @@ app.add_exception_handler(Exception, general_exception_handler)
 
 # Protected: Business logic routers
 app.include_router(v1_router)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    schema["components"]["securitySchemes"] = {
+        "ApiKeyHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+    }
+
+    for path in schema.get("paths", {}).values():
+        for operation in path.values():
+            operation["security"] = [{"ApiKeyHeader": []}]
+
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
