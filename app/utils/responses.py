@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from app.domain.models.responses.response_actions import ResponseAction, ClientAction
+from app.domain.models.responses.response_actions import ClientAction
 
 
 def build_client_response(client):

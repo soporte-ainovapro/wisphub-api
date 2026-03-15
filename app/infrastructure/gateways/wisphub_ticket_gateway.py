@@ -61,39 +61,6 @@ class WispHubTicketGateway(ITicketGateway):
             answer_text=None,
         )
 
-    async def get_client_tickets(self, service_id: int) -> List[TicketResponse]:
-        url = f"{self.base_url}/api/tickets/"
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                url,
-                headers=self.headers,
-                params={"servicio": service_id},
-            )
-
-        if response.status_code != 200:
-            return []
-
-        data = response.json()
-        results = data.get("results", [])
-
-        tickets = []
-        for t in results:
-            answer = t.get("respuestas")
-            tickets.append(TicketResponse(
-                ticket_id=t.get("id_ticket"),
-                subject=t.get("asunto"),
-                created_at=t.get("fecha_estimada_inicio"),
-                end_date=t.get("fecha_estimada_fin"),
-                status_ticket=t.get("estado"),
-                priority=t.get("prioridad"),
-                answer_text=(answer.get("respuesta") if isinstance(answer, dict) else None),
-            ))
-        return tickets
-
-    async def has_recent_ticket(self, service_id: int, hours: int = 24) -> bool:
-        tickets = await self.get_client_tickets(service_id)
-        return bool(tickets)
-
     async def get_ticket(self, ticket_id: int) -> Optional[TicketResponse]:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(

@@ -6,9 +6,6 @@ class InternetPlanResponse(BaseModel):
     download_speed: str
     upload_speed: str
     
-class InternetPlanTypeResponse(BaseModel):
-    type: str
-    
 class InternetPlanListItem(BaseModel):
     plan_id: int
     name: str

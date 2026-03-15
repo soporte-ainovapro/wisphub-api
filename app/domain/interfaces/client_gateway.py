@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict
-from app.domain.models.clients import ClientResponse, ClientUpdateRequest, ClientVerifyRequest, ClientResolveRequest
+from app.domain.models.clients import ClientResponse
 
 class IClientGateway(ABC):
     @abstractmethod

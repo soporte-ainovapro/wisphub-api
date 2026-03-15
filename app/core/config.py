@@ -1,4 +1,3 @@
-from pydantic import Field
 from typing import Tuple
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,32 +25,6 @@ class Settings(BaseSettings):
 
     # Clave interna estática para autenticarse contra WispHub API (Frontend -> Middleware)
     WISPHUB_INTERNAL_API_KEY: str
-
-    @property
-    def TICKETS_URL(self) -> str:
-        return f"{self.WISPHUB_NET_HOST}/api/tickets/"
-    
-    @property
-    def CLIENTS_URL(self) -> str:
-        return f"{self.WISPHUB_NET_HOST}/api/clientes/"
-    
-    @property
-    def PLANS_URL(self) -> str:
-        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/"
-    
-    @property
-    def PLANS_PPPOE_URL(self):
-        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/pppoe/"
-    
-    @property
-    def PLANS_QUEUE_URL(self):
-        return f"{self.WISPHUB_NET_HOST}/api/plan-internet/queue/"
-    
-    @property
-    def TASKS_URL(self) -> str:
-        return f"{self.WISPHUB_NET_HOST}/api/tasks/"
-
-
 
 
 settings = Settings()

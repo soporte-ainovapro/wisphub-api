@@ -1,19 +1,5 @@
 from pydantic import BaseModel
 
-class TicketRead(BaseModel):
-    ticket_id: int
-    service_id: int
-    subject: str
-    description: str
-    status: str
-    priority: str
-    department: str
-    technician_id: int | None
-    created_at: str
-    updated_at: str | None
-    estimated_end_date: str | None
-
-    
 class TicketCreate(BaseModel):
     service_id: int
     subject: str

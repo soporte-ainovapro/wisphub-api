@@ -2,7 +2,6 @@ from fastapi import APIRouter, Body, Depends, Path, HTTPException
 from typing import Dict, Any
 
 from app.infrastructure.gateways.wisphub_network_gateway import WispHubNetworkGateway
-from app.domain.models.responses.response_actions import NetworkAction
 from app.domain.models.connection_status import ConnectionStatus
 from app.domain.models.ping_request import PingRequest
 from app.api.dependencies import verify_api_key

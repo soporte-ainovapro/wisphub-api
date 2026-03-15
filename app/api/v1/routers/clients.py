@@ -2,8 +2,7 @@ from typing import Any, List
 
 from fastapi import APIRouter, Depends, Path, HTTPException
 from app.infrastructure.gateways.wisphub_client_gateway import WispHubClientGateway
-from app.domain.models.responses.response_actions import ResponseAction, ClientAction
-from app.domain.models.responses.response_types import ResponseType
+from app.domain.models.responses.response_actions import ClientAction
 from app.utils.responses import build_client_response
 from app.domain.models.clients import ClientResponse, ClientUpdateRequest, ClientVerifyRequest, ClientResolveRequest
 from app.api.dependencies import verify_api_key

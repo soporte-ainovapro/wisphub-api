@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Path, Body, HTTPException
-from typing import Any
 
 from app.infrastructure.gateways.wisphub_ticket_gateway import WispHubTicketGateway
 from app.core.config import settings

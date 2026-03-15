@@ -2,7 +2,6 @@ import httpx
 from typing import List, Optional, Dict
 from async_lru import alru_cache
 
-from app.core.config import settings
 from app.domain.interfaces.client_gateway import IClientGateway
 from app.domain.models.clients import ClientResponse
 

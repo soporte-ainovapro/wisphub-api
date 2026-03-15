@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Path, HTTPException
 from typing import List, Dict, Any
 
 from app.infrastructure.gateways.wisphub_internet_plan_gateway import WispHubInternetPlanGateway
-from app.domain.models.responses.response_actions import PlanAction
 from app.domain.models.internet_plans import InternetPlanListItem, InternetPlanResponse
 from app.api.dependencies import verify_api_key
 from app.core.config import settings
@@ -17,7 +16,7 @@ def get_plan_gateway() -> WispHubInternetPlanGateway:
     )
 
 
-@router.get("/api/internet-plans/", response_model=List[InternetPlanListItem])
+@router.get("/api/internet-plans", response_model=List[InternetPlanListItem])
 async def list_internet_plans_endpoint(
     gateway: WispHubInternetPlanGateway = Depends(get_plan_gateway),
     _: str = Depends(verify_api_key),

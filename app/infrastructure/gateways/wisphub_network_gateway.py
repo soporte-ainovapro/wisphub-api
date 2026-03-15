@@ -1,12 +1,10 @@
-import asyncio
 import httpx
 from typing import Optional
 
-from app.domain.interfaces.network_gateway import INetworkGateway
 from app.domain.models.connection_status import ConnectionStatus
 
 
-class WispHubNetworkGateway(INetworkGateway):
+class WispHubNetworkGateway:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url
         self.headers = {"Authorization": f"Api-Key {api_key}"}
@@ -67,12 +65,14 @@ class WispHubNetworkGateway(INetworkGateway):
 
             for item in results:
                 for key, value in item.items():
-                    if key.startswith("ping-") and key != "ping-exitoso":
+                    if key.startswith("ping-") and isinstance(value, dict):
                         total_sent += int(value.get("sent", 0))
                         total_received += int(value.get("received", 0))
 
+            # Si ningún item tenía datos de sent/received (todos fueron errores del router),
+            # el equipo no es alcanzable
             if total_sent == 0:
-                return ConnectionStatus.error
+                return ConnectionStatus.no_internet
 
             loss_ratio = total_received / total_sent
 
@@ -82,19 +82,3 @@ class WispHubNetworkGateway(INetworkGateway):
                 return ConnectionStatus.intermittent
             else:
                 return ConnectionStatus.stable
-
-        return ConnectionStatus.error
-
-    async def reboot_antenna(self, service_id: int) -> bool:
-        async with httpx.AsyncClient(timeout=10) as client:
-            try:
-                response = await client.post(
-                    f"{self.base_url}/api/clientes/{service_id}/reiniciar-antena/",
-                    headers=self.headers,
-                )
-                return response.status_code in [200, 202, 204]
-            except httpx.RequestError:
-                return False
-
-    async def check_connection(self, antenna_ip: str, router_ip: str) -> bool:
-        return True

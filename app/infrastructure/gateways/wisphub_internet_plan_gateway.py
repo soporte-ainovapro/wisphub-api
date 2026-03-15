@@ -36,7 +36,7 @@ class WispHubInternetPlanGateway(IInternetPlanGateway):
     async def list_internet_plans(self) -> Optional[List[InternetPlanListItem]]:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
-                f"{self.base_url}/api/internet/planes/",
+                f"{self.base_url}/api/plan-internet/",
                 headers=self.headers,
             )
 
@@ -59,7 +59,7 @@ class WispHubInternetPlanGateway(IInternetPlanGateway):
         ]
 
     async def get_pppoe_plan(self, plan_id: int) -> Optional[InternetPlanResponse]:
-        return await self._get_plan_detail("/api/internet/planes/pppoe/", plan_id)
+        return await self._get_plan_detail("/api/plan-internet/pppoe/", plan_id)
 
     async def get_queue_plan(self, plan_id: int) -> Optional[InternetPlanResponse]:
-        return await self._get_plan_detail("/api/internet/planes/routerboard/queue/", plan_id)
+        return await self._get_plan_detail("/api/plan-internet/queue/", plan_id)
