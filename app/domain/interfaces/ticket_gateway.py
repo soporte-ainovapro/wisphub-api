@@ -13,4 +13,4 @@ class ITicketGateway(ABC):
 
     @abstractmethod
     async def zone_has_three_open_tickets(self, zone_id: int) -> bool:
-        pass
+        return False

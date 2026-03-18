@@ -14,3 +14,4 @@ class IInternetPlanGateway(ABC):
     @abstractmethod
     async def get_queue_plan(self, plan_id: int) -> Optional[InternetPlanResponse]:
         pass
+    
