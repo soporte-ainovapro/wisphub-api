@@ -6,26 +6,29 @@ This repository contains a high-performance RESTful API built with FastAPI. It s
 
 ## Architecture & Core Capabilities
 
-The API is structured following **Clean Architecture / Domain-Driven Design (DDD)** principles, aligned with its sibling project `factus-api`. The application is organized into three clear layers:
+The API follows a **Service Layer** architecture, identical to its sibling project `factus-api`. Each concrete service class handles both HTTP communication with WispHub and all related business logic — there is no separate gateway or infrastructure layer.
 
 ```
 app/
-├── domain/
-│   ├── models/         # Pydantic models (data contracts)
-│   ├── interfaces/     # Abstract gateway interfaces (ABC)
-│   └── exceptions.py   # Domain-level custom exceptions
-├── infrastructure/
-│   └── gateways/       # Concrete WispHub HTTP implementations
 ├── api/
-│   └── v1/
-│       └── endpoints/  # FastAPI route handlers (inject gateways via Depends)
-└── core/               # Settings and configuration
+│   ├── deps.py             # Dependency injection factory + verify_api_key
+│   └── v1/routers/         # Thin FastAPI route handlers
+├── services/
+│   ├── interfaces.py       # Service Protocols (ClientService, TicketService, …)
+│   └── providers/
+│       └── wisphub/        # Concrete service implementations
+│           ├── wisphub_client_service.py
+│           ├── wisphub_ticket_service.py
+│           ├── wisphub_internet_plan_service.py
+│           └── wisphub_network_service.py
+├── schemas/                # Pydantic request/response models
+└── core/                   # Settings and configuration
 ```
 
 **Why this architecture?**
-- **Testability:** Endpoints inject concrete gateway instances via `Depends()`, making it trivial to mock any gateway in tests without patching network calls.
-- **Low coupling:** The API layer only depends on abstract interfaces — not on WispHub HTTP specifics. If WispHub changes, only the gateway implementation needs updating.
-- **Consistency:** All Baiji microservices (`factus-api`, `wisphub-api`) share the same architecture, reducing cognitive load when switching between projects.
+- **Simplicity:** Each service class is self-contained — HTTP calls and business logic live together with no extra indirection.
+- **Testability:** API tests mock the concrete service class via `@patch`; service tests mock the HTTP layer with `respx`.
+- **Consistency:** Identical structure to `factus-api`, reducing cognitive load when switching between Baiji microservices.
 
 *   **Static Internal Authentication:** Secures internal backend communication utilizing a shared `X-API-Key` header mechanism.
 *   **In-Memory Caching System:** Implements LRU caching via `async_lru` for resource-intensive data retrieval with TTL strategies (5 mins for clients, 15 mins for plans).

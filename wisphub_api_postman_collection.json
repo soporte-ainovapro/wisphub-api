@@ -152,7 +152,7 @@
                     }
                 },
                 {
-                    "name": "Update Profile (Document / Phone / Address)",
+                    "name": "Update Profile",
                     "request": {
                         "method": "PUT",
                         "header": [
@@ -169,7 +169,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"document\": \"100100100\",\n    \"phone\": \"3000000000\",\n    \"address\": \"Calle Falsa 123\"\n}",
+                            "raw": "{\n    \"name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"document\": \"100100100\",\n    \"phone\": \"3000000000\",\n    \"address\": \"Calle Falsa 123\",\n    \"locality\": \"Chapinero\",\n    \"city\": \"Bogotá\",\n    \"balance\": \"-50000\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -284,13 +284,14 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{base_url}}/api/internet-plans",
+                            "raw": "{{base_url}}/api/internet-plans/",
                             "host": [
                                 "{{base_url}}"
                             ],
                             "path": [
                                 "api",
-                                "internet-plans"
+                                "internet-plans",
+                                ""
                             ]
                         }
                     }

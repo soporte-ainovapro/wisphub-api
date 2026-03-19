@@ -1,18 +1,30 @@
-import httpx
+"""
+Servicio WispHub para tickets de soporte.
+
+Combina acceso HTTP a la API de WispHub con la lógica de negocio:
+validación de límite de zona y creación de tickets con prioridad y fechas.
+"""
+
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
+
+import httpx
+from fastapi import HTTPException
 
 from app.core.config import settings
-from app.domain.interfaces.ticket_gateway import ITicketGateway
-from app.domain.models.tickets import TicketCreate, TicketResponse
-from app.utils.ticket_rules import get_priority
+from app.schemas.tickets import TicketCreate, TicketCreateRequest, TicketResponse
 from app.utils.dates import add_business_days
+from app.utils.ticket_rules import get_priority
 
 
-class WispHubTicketGateway(ITicketGateway):
-    def __init__(self, base_url: str, api_key: str):
+class WispHubTicketService:
+    def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url
         self.headers = {"Authorization": f"Api-Key {api_key}"}
+
+    # ------------------------------------------------------------------
+    # HTTP helpers
+    # ------------------------------------------------------------------
 
     async def create_ticket(self, ticket: TicketCreate) -> Optional[TicketResponse]:
         department = "Soporte Técnico"
@@ -109,3 +121,33 @@ class WispHubTicketGateway(ITicketGateway):
                         return True
 
             return False
+
+    # ------------------------------------------------------------------
+    # Business logic
+    # ------------------------------------------------------------------
+
+    async def create(self, request: TicketCreateRequest) -> TicketResponse:
+        if await self.zone_has_three_open_tickets(request.zone_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Zona límite alcanzado. Máximo {settings.MAX_ACTIVE_TICKETS_PER_ZONE} tickets.",
+            )
+
+        ticket_data = TicketCreate(
+            service_id=request.service_id,
+            subject=request.subject,
+            technician_id=request.technician_id,
+            description=request.description,
+        )
+
+        ticket = await self.create_ticket(ticket_data)
+        if not ticket:
+            raise HTTPException(status_code=400, detail="Error creando ticket.")
+
+        return ticket
+
+    async def get(self, ticket_id: int) -> Optional[TicketResponse]:
+        return await self.get_ticket(ticket_id)
+
+    async def zone_is_blocked(self, zone_id: int) -> bool:
+        return await self.zone_has_three_open_tickets(zone_id)

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from app.domain.models.tickets import TicketResponse
+from app.schemas.tickets import TicketResponse
 from app.core.config import settings
 
 MOCK_TICKET_RESP = TicketResponse(
@@ -10,10 +10,11 @@ MOCK_TICKET_RESP = TicketResponse(
     end_date="2026-02-28 10:00",
     status_ticket="Abierto",
     priority="3",
-    answer_text=None
+    answer_text=None,
 )
 
-GATEWAY = "app.infrastructure.gateways.wisphub_ticket_gateway.WispHubTicketGateway"
+GATEWAY = "app.services.providers.wisphub.wisphub_ticket_service.WispHubTicketService"
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.get_ticket", new_callable=AsyncMock)
@@ -26,6 +27,7 @@ async def test_get_ticket_endpoint_success(mock_get_ticket, auth_client):
     data = response.json()
     assert data["ticket_id"] == 50
 
+
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.get_ticket", new_callable=AsyncMock)
 async def test_get_ticket_endpoint_not_found(mock_get_ticket, auth_client):
@@ -36,6 +38,7 @@ async def test_get_ticket_endpoint_not_found(mock_get_ticket, auth_client):
 
     data = response.json()
     assert "detail" in data
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.zone_has_three_open_tickets", new_callable=AsyncMock)
@@ -51,13 +54,14 @@ async def test_create_ticket_endpoint_success(mock_create, mock_zone, auth_clien
             "subject": "Falla Masiva",
             "technician_id": 5,
             "description": "Prueba",
-            "zone_id": 2
-        }
+            "zone_id": 2,
+        },
     )
     assert response.status_code == 200
 
     data = response.json()
     assert data["ticket_id"] == 50
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.zone_has_three_open_tickets", new_callable=AsyncMock)
@@ -71,14 +75,15 @@ async def test_create_ticket_endpoint_zone_blocked(mock_zone, auth_client):
             "subject": "Falla",
             "technician_id": 5,
             "description": "Prueba",
-            "zone_id": 2
-        }
+            "zone_id": 2,
+        },
     )
     assert response.status_code == 400
 
     data = response.json()
     assert "detail" in data
     assert "máximo" in data["detail"].lower()
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.zone_has_three_open_tickets", new_callable=AsyncMock)
@@ -90,6 +95,7 @@ async def test_check_zone_blocked_true(mock_zone, auth_client):
 
     data = response.json()
     assert data["is_blocked"] is True
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.zone_has_three_open_tickets", new_callable=AsyncMock)

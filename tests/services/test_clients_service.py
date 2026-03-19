@@ -1,13 +1,16 @@
 """
-These tests now test WispHubClientGateway directly (mocking the HTTP calls)
+These tests now test WispHubClientService directly (mocking the HTTP calls)
 instead of the legacy clients_service module.
 """
+
 import pytest
 import respx
 import httpx
-from app.infrastructure.gateways.wisphub_client_gateway import WispHubClientGateway
+from app.services.providers.wisphub.wisphub_client_service import (
+    WispHubClientService,
+)
 from app.core.config import settings
-from app.domain.models.clients import ClientResponse
+from app.schemas.clients import ClientResponse
 
 MOCK_WISPHUB_CLIENT_RESPONSE = {
     "results": [
@@ -27,24 +30,26 @@ MOCK_WISPHUB_CLIENT_RESPONSE = {
             "interfaz_lan": "ether1",
             "plan_internet": {"id": 2, "nombre": "Plan Default"},
             "precio_plan": "40000.00",
-            "tecnico": {"id": 5, "nombre": "Tech 1"}
+            "tecnico": {"id": 5, "nombre": "Tech 1"},
         }
     ],
-    "next": None
+    "next": None,
 }
 
+
 def _make_gateway():
-    return WispHubClientGateway(
+    return WispHubClientService(
         base_url=settings.WISPHUB_NET_HOST,
         api_key=settings.WISPHUB_NET_KEY,
     )
 
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_client_by_document_success():
-    respx.get(
-        url__startswith=settings.WISPHUB_NET_HOST
-    ).mock(return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE))
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE)
+    )
 
     gateway = _make_gateway()
     client = await gateway.get_client_by_document("12345678")
@@ -57,34 +62,37 @@ async def test_get_client_by_document_success():
     assert client.internet_plan_name == "Plan Default"
     assert client.technician_id == 5
 
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_client_by_document_not_found():
-    respx.get(
-        url__startswith=settings.WISPHUB_NET_HOST
-    ).mock(return_value=httpx.Response(200, json={"results": []}))
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json={"results": []})
+    )
 
     gateway = _make_gateway()
     client = await gateway.get_client_by_document("00000000")
     assert client is None
 
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_client_api_error():
-    respx.get(
-        url__startswith=settings.WISPHUB_NET_HOST
-    ).mock(return_value=httpx.Response(500, json={"error": "Internal Server Error"}))
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(500, json={"error": "Internal Server Error"})
+    )
 
     gateway = _make_gateway()
     client = await gateway.get_client_by_document("1234")
     assert client is None
 
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_clients_list_success():
-    respx.get(
-        url__startswith=settings.WISPHUB_NET_HOST
-    ).mock(return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE))
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json=MOCK_WISPHUB_CLIENT_RESPONSE)
+    )
 
     gateway = _make_gateway()
     clients = await gateway.get_clients()

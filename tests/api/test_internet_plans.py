@@ -1,12 +1,11 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from app.domain.models.internet_plans import InternetPlanListItem, InternetPlanResponse
+from app.schemas.internet_plans import InternetPlanListItem, InternetPlanResponse
 
-MOCK_PLANS = [
-    InternetPlanListItem(plan_id=1, name="Plan 1", type="PPPOE")
-]
+MOCK_PLANS = [InternetPlanListItem(plan_id=1, name="Plan 1", type="PPPOE")]
 
-GATEWAY = "app.infrastructure.gateways.wisphub_internet_plan_gateway.WispHubInternetPlanGateway"
+GATEWAY = "app.services.providers.wisphub.wisphub_internet_plan_service.WispHubInternetPlanService"
+
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
@@ -21,6 +20,7 @@ async def test_list_internet_plans_endpoint_success(mock_list_plans, auth_client
     assert len(data) == 1
     assert data[0]["name"] == "Plan 1"
 
+
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
 async def test_list_internet_plans_endpoint_not_found(mock_list_plans, auth_client):
@@ -32,6 +32,7 @@ async def test_list_internet_plans_endpoint_not_found(mock_list_plans, auth_clie
     data = response.json()
     assert "detail" in data
 
+
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
 async def test_get_plan_detail_not_found(mock_list, auth_client):
@@ -42,16 +43,18 @@ async def test_get_plan_detail_not_found(mock_list, auth_client):
     data = response.json()
     assert "detail" in data
 
+
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
 @patch(f"{GATEWAY}.get_pppoe_plan", new_callable=AsyncMock)
-async def test_get_plan_detail_pppoe_success(mock_get_pppoe, mock_list_plans, auth_client):
+async def test_get_plan_detail_pppoe_success(
+    mock_get_pppoe, mock_list_plans, auth_client
+):
     mock_list_plans.return_value = [
         InternetPlanListItem(plan_id=1, name="PPPOE_Plan", type="PPPOE")
     ]
     mock_get_pppoe.return_value = InternetPlanResponse(
-        name="PPPOE_Plan", price=40000.0,
-        download_speed="10", upload_speed="2"
+        name="PPPOE_Plan", price=40000.0, download_speed="10", upload_speed="2"
     )
 
     response = await auth_client.get("/api/internet-plans/1")

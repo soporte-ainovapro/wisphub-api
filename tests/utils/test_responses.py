@@ -1,8 +1,8 @@
 from app.utils.responses import build_client_response
-from app.domain.models.clients import ClientResponse
-from app.domain.models.responses.response_actions import ResponseAction, ClientAction
+from app.schemas.clients import ClientResponse, ClientAction
 from fastapi import HTTPException
 import pytest
+
 
 def test_build_client_response_found():
     # Creamos un cliente de prueba
@@ -21,12 +21,13 @@ def test_build_client_response_found():
         outstanding_balance=0.0,
         lan_interface="ether1",
         internet_plan_name="Plan 10MB",
-        technician_id=1
+        technician_id=1,
     )
-    
+
     response = build_client_response(client)
     assert response == client
-    
+
+
 def test_build_client_response_not_found():
     with pytest.raises(HTTPException) as excinfo:
         build_client_response(None)
