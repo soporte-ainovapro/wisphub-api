@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends, Path, HTTPException
-from typing import Dict, Any
+from typing import Any, Dict
 
 from app.services.interfaces import NetworkService
 from app.api.deps import get_network_service
@@ -32,7 +32,7 @@ async def create_ping(
     return {"task_id": task_id}
 
 
-@router.get("/api/ping/{task_id}/", response_model=Any)
+@router.get("/api/ping/{task_id}/", response_model=Dict[str, Any])
 async def get_ping_result(
     task_id: str = Path(
         ..., description="ID de la tarea generada en la creación del Ping"

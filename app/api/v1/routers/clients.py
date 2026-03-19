@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Path, HTTPException
-from typing import Any, List
+from typing import Dict, List
 
 from app.services.interfaces import ClientService
 from app.api.deps import get_client_service, verify_api_key
@@ -90,7 +90,7 @@ async def resolve_client_endpoint(
     return await service.resolve(request)
 
 
-@router.put("/api/clients/{service_id}", response_model=Any)
+@router.put("/api/clients/{service_id}", response_model=Dict[str, str])
 async def update_client_endpoint(
     service_id: int,
     request: ClientUpdateRequest,

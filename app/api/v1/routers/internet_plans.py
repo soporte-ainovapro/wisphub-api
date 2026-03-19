@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Path, HTTPException
-from typing import List, Dict, Any
+from typing import List
 
 from app.services.interfaces import InternetPlanService
 from app.api.deps import get_internet_plan_service
-from app.schemas.internet_plans import InternetPlanListItem, InternetPlanResponse
+from app.schemas.internet_plans import InternetPlanListItem, InternetPlanPCQResponse, InternetPlanResponse
 from app.api.deps import verify_api_key
 
 router = APIRouter(tags=["internet-plans"])
@@ -29,7 +29,7 @@ async def list_internet_plans_endpoint(
 
 @router.get(
     "/api/internet-plans/{plan_id}",
-    response_model=InternetPlanResponse | Dict[str, Any],
+    response_model=InternetPlanResponse | InternetPlanPCQResponse,
 )
 async def get_internet_plan_detail_endpoint(
     plan_id: int = Path(...),
