@@ -11,7 +11,7 @@
 **Authentication:** All endpoints require the header `X-API-Key: <WISPHUB_INTERNAL_API_KEY>`.  
 **Public endpoint (no key):** `GET /health` → returns `{"status": "ok"}`.
 
-The API is organized into four capability domains:
+The API is organized into five capability domains:
 
 | Domain | Purpose |
 |---|---|
@@ -19,6 +19,7 @@ The API is organized into four capability domains:
 | **Internet Plans** | List and inspect bandwidth plans |
 | **Tickets** | Open and query technical support tickets |
 | **Network / Ping** | Diagnose a subscriber's internet connectivity |
+| **Payment Methods** | List supported payment channels and gateways |
 
 ---
 
@@ -235,23 +236,38 @@ Retrieves a ticket by ID.
 
 ### 3.4 Network / Ping
 
-#### `POST /api/{service_id}/ping/`
+#### `POST /api/network/{service_id}/ping/`
 Initiates an async ICMP ping diagnostic for a client's equipment.
 - **Path param:** `service_id` (int)
 - **Body:** `{"pings": 4}` — number of ping packets (default 4)
 - **Returns:** `{"task_id": "abc-123"}`
 - **Use when:** User reports connectivity issues and you need to diagnose remotely
 
-#### `GET /api/ping/{task_id}/`
+#### `GET /api/network/ping/{task_id}/`
 Polls the result of a previously started ping task.
 - **Path param:** `task_id` (string)
-- **Returns:**
-  - `{"result": "stable"}` → connection is healthy
-  - `{"result": "pending"}` → task still running, poll again
-  - HTTP 400 with detail `"Intermittent connection"` → packet loss
-  - HTTP 400 with detail `"No internet"` → zero packets received
-  - HTTP 400 with detail `"Ping failed"` → generic error
-- **Pattern:** Poll every 2–3 seconds until result is not `"pending"`.
+- **Returns:** Standardized `PingResultResponse` format:
+  ```json
+  {
+    "status": "stable",
+    "message": "Client device has an active connection."
+  }
+  ```
+  **Possible statuses:**
+  - `stable`: Connection healthy (CPE/Router responded).
+  - `antenna_only`: Customer device (CPE) is down/unreachable, but the main sector antenna (public IP) responded.
+  - `pending`: Task still running, poll again.
+  - `no_internet`: Zero packets received on all interfaces.
+  - `error`: MikroTik/Router errors or invalid host setup.
+- **Pattern:** Poll every 2–3 seconds until `status` is not `"pending"`.
+
+---
+
+### 3.5 Payment Methods
+
+#### `GET /api/payment-methods/`
+- **Purpose:** Retrieves a list of supported payment channels and billing gateways for the ISP.
+- **Use when:** The client wants to know where or how to pay their internet bill.
 
 ---
 
@@ -341,16 +357,16 @@ Collect ≥3 of: name, address, internet_plan_name, internet_plan_price
 
 ```
 1. Inform user that a diagnostic will be run
-2. → POST /api/{service_id}/ping/  { "pings": 4 }
+2. → POST /api/network/{service_id}/ping/  { "pings": 4 }
    → store task_id
 3. Poll (every 2–3 sec):
-   → GET /api/ping/{task_id}/
-   → loop while result == "pending"
+   → GET /api/network/ping/{task_id}/
+   → loop while result.status == "pending"
 4. Interpret result:
-   - "stable"              → "your connection is working normally"
-   - "Intermittent connection" → "we detected packet loss, recommend technician visit"
-   - "No internet"         → "we cannot reach your equipment, check power or cable"
-   - "Ping failed"         → "diagnostic failed, please call support"
+   - "stable"       → "your connection is working normally"
+   - "antenna_only" → "we can reach your nearest tower, but not your router. Please check the power."
+   - "no_internet"  → "we cannot reach your equipment or the tower."
+   - "error"        → "diagnostic failed, please call support"
 ```
 
 ---

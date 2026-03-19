@@ -31,7 +31,7 @@ app/
 - **Consistency:** Identical structure to `factus-api`, reducing cognitive load when switching between Baiji microservices.
 
 *   **Static Internal Authentication:** Secures internal backend communication utilizing a shared `X-API-Key` header mechanism.
-*   **In-Memory Caching System:** Implements LRU caching via `async_lru` for resource-intensive data retrieval with TTL strategies (5 mins for clients, 15 mins for plans).
+*   **In-Memory Caching System:** Implements LRU caching via `async_lru` for resource-intensive data retrieval with TTL strategies (5 mins for clients, 15 mins for plans, 15 mins for zone ticket blockage checks). Employs background pre-warming via FastAPI lifespan events to achieve ~0ms response latency on parallelized bulk client fetching.
 *   **Flexible Client Discovery:** Provides specialized search routes that leverage partial string matching when exact identifiers are unavailable.
 *   **Algorithmic Identity Verification:** Implements `POST /verify`, which validates ownership by comparing incoming billing data against WispHub database records.
 *   **Exception Handling Standard:** Consistent `{"detail": "..."}` error responses via global exception handlers.
@@ -121,12 +121,14 @@ locust -f locustfile.py --host=http://localhost:8000
 *   `GET /api/internet-plans/`: Acquires the synchronized, globally cached dataset of all available provider internet plans.
 *   `GET /api/internet-plans/{plan_id}`: Locates and structures deep attributes (Download/Upload limitations, network type) of a specified plan identifier.
 
-### Technical Tickets Module
+### Technical Tickets & Zones Module
 *   `POST /api/tickets/`: Instantiates a standardized escalation sub-routine inside WispHub containing structured debugging metadata.
 *   `GET /api/tickets/subjects`: Returns all valid ticket subjects grouped by priority level.
 *   `GET /api/tickets/zone-blocked/{zone_id}`: Checks whether a zone has exceeded the maximum number of open tickets.
-*   `GET /api/tickets/{ticket_id}`: Retrieves the full details of a technical support ticket by its unique ID.
 
 ### Network & Diagnostics Module
-*   `POST /api/{service_id}/ping/`: Initiates an asynchronous ICMP PING diagnostic task against a client's equipment.
-*   `GET /api/ping/{task_id}/`: Retrieves the result of a previously initialized PING task.
+*   `POST /api/network/{service_id}/ping/`: Initiates an asynchronous ICMP PING diagnostic task against a client's equipment.
+*   `GET /api/network/ping/{task_id}/`: Retrieves the result of a previously initialized PING task, accurately distinguishing between Client CPE status (private IPs or Layer 2 MAC address) versus Sector Antenna status (public IPs).
+
+### Payment Methods Module
+*   `GET /api/payment-methods/`: Lists available billing and payment channels configured in WispHub.
