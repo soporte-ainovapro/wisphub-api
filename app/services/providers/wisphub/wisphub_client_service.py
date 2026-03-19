@@ -6,6 +6,8 @@ scoring de resolución de identidad, verificación de campos y mapeo
 de nombres Python → WispHub.
 """
 
+import asyncio
+import math
 import re
 from typing import Any, Dict, List, Optional
 
@@ -144,24 +146,60 @@ class WispHubClientService:
 
     @alru_cache(maxsize=1, ttl=300)
     async def get_clients(self) -> List[ClientResponse]:
-        """Carga todos los clientes paginando. Resultado cacheado 5 min."""
-        all_results: List[ClientResponse] = []
-        next_url: Optional[str] = f"{self.base_url}/api/clientes/"
+        """
+        Carga todos los clientes paginando en paralelo. Resultado cacheado 5 min.
+
+        Estrategia:
+          1. Fetch página 1 → obtiene `count` y tamaño de página.
+          2. Calcula cuántas páginas quedan y las descarga todas en paralelo.
+          3. Combina resultados en orden.
+        """
+        base_url = f"{self.base_url}/api/clientes/"
 
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            while next_url:
-                response = await client.get(next_url, headers=self.headers)
-                if response.status_code != 200:
-                    break
+            # --- Página 1 ---
+            r1 = await client.get(base_url, headers=self.headers)
+            if r1.status_code != 200:
+                return []
+            try:
+                data1 = r1.json()
+            except Exception:
+                return []
+
+            results1 = data1.get("results")
+            if not isinstance(results1, list):
+                return []
+
+            all_results: List[ClientResponse] = [_parse_client(c) for c in results1]
+            total_count: int = data1.get("count") or 0
+            page_size: int = len(results1)
+
+            if page_size == 0 or total_count <= page_size:
+                return all_results
+
+            # --- Páginas restantes en paralelo ---
+            total_pages = math.ceil(total_count / page_size)
+
+            async def _fetch_page(page: int) -> List[ClientResponse]:
                 try:
-                    data = response.json()
+                    r = await client.get(
+                        base_url,
+                        headers=self.headers,
+                        params={"page": page},
+                    )
+                    if r.status_code != 200:
+                        return []
+                    data = r.json()
+                    items = data.get("results")
+                    return [_parse_client(c) for c in items] if isinstance(items, list) else []
                 except Exception:
-                    break
-                results = data.get("results")
-                if not isinstance(results, list):
-                    break
-                all_results.extend(_parse_client(c) for c in results)
-                next_url = data.get("next")
+                    return []
+
+            pages = await asyncio.gather(
+                *[_fetch_page(p) for p in range(2, total_pages + 1)]
+            )
+            for page_items in pages:
+                all_results.extend(page_items)
 
         return all_results
 
