@@ -23,7 +23,7 @@ EXPOSE 8000
 
 # Añadimos un Health Check para que Docker sepa si la API se bloqueó
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Iniciamos Gunicorn con Uvicorn Workers para ambiente de Producción
 CMD ["gunicorn", "app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
