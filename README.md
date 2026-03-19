@@ -40,7 +40,7 @@ app/
 
 *   **API Framework:** FastAPI (Python 3.12)
 *   **Data Validation:** Pydantic V2
-*   **Authentication:** python-jose (JWT) + passlib/bcrypt
+*   **Authentication:** Static API Key Header (`X-API-Key`)
 *   **HTTP Client:** HTTPX (Asynchronous implementation)
 *   **Caching Engine:** async_lru
 *   **Application Server:** Uvicorn (ASGI) / Gunicorn (Process Manager)
@@ -65,9 +65,9 @@ WISPHUB_INTERNAL_API_KEY=<Shared_Secret_Between_Backends>
 
 All protected endpoints require an `X-API-Key` header with the configured shared secret.
 
-### Using the Token
+### Using the API Key
 
-Include the token in all subsequent requests:
+Include the API Key in the headers of all protected requests:
 
 ```bash
 curl -H "X-API-Key: <your-internal-secret>" http://localhost:8000/api/clients/
@@ -87,7 +87,7 @@ The codebase is governed by comprehensive testing standards to ensure stability 
 The `tests/` directory uses `pytest` and `respx` to inject mocked HTTP transport layers. This ensures that the WispHub API is isolated from local execution noise while preserving the validity of Pydantic parsing and endpoint routing.
 
 Two fixtures are available in `conftest.py`:
-- **`auth_client`** — Pre-configured with a valid Bearer token. Used for all business-logic endpoint tests.
+- **`auth_client`** — Pre-configured with a valid `X-API-Key` header. Used for all business-logic endpoint tests.
 - **`async_client`** — Unauthenticated. Used for testing public routes and `401 Unauthorized` scenarios.
 
 ```bash
@@ -103,9 +103,6 @@ locust -f locustfile.py --host=http://localhost:8000
 *Empirical evaluation demonstrates the server effectively handles >40 Requests Per Second (RPS) sustaining 0.00% failure rates on read-intensive cached routes under persistent load.*
 
 ## API Endpoints Reference
-
-### Authentication Module
-*   `POST /api/auth/token`: Authenticates with `username` + `password` form fields and returns a signed JWT Bearer token. **Public — no prior token required.**
 
 ### Clients Module
 *   `GET /api/clients/`: Retrieves the globally cached client pool.
