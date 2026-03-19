@@ -7,6 +7,7 @@ Las implementaciones concretas viven en app/services/providers/<proveedor>/.
 
 from typing import Any, Dict, List, Optional, Protocol
 
+from app.schemas.payment_methods import PaymentMethodResponse
 from app.schemas.clients import (
     ClientResponse,
     ClientResolveRequest,
@@ -44,3 +45,7 @@ class InternetPlanService(Protocol):
 class NetworkService(Protocol):
     async def start_ping(self, service_id: int, pings: int) -> Optional[str]: ...
     async def get_ping_result(self, task_id: str) -> ConnectionStatus: ...
+
+
+class PaymentMethodService(Protocol):
+    async def list_payment_methods(self) -> Optional[List[PaymentMethodResponse]]: ...

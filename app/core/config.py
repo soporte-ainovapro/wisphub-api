@@ -29,5 +29,9 @@ class Settings(BaseSettings):
     # Proveedor ISP activo — determina qué implementación concreta se inyecta en deps.py
     ISP_PROVIDER: str = "wisphub"
 
+    # Feriados adicionales (más allá de los colombianos calculados automáticamente).
+    # Formato JSON array ISO: '["YYYY-MM-DD", "YYYY-MM-DD"]'
+    EXTRA_HOLIDAYS: Tuple[str, ...] = ()
+
 
 settings = Settings()

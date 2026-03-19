@@ -61,3 +61,60 @@ async def test_get_plan_detail_pppoe_success(
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "PPPOE_Plan"
+
+
+# ---------------------------------------------------------------------------
+# SIMPLE QUEUE plan detail
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
+@patch(f"{GATEWAY}.get_queue_plan", new_callable=AsyncMock)
+async def test_get_plan_detail_simple_queue_success(mock_get_queue, mock_list_plans, auth_client):
+    mock_list_plans.return_value = [
+        InternetPlanListItem(plan_id=2, name="Queue_Plan", type="SIMPLE QUEUE")
+    ]
+    mock_get_queue.return_value = InternetPlanResponse(
+        name="Queue_Plan", price=25000.0, download_speed="5", upload_speed="1"
+    )
+
+    response = await auth_client.get("/api/internet-plans/2")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Queue_Plan"
+    assert data["price"] == 25000.0
+
+
+# ---------------------------------------------------------------------------
+# PCQ plan detail
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.list_internet_plans", new_callable=AsyncMock)
+async def test_get_plan_detail_pcq_success(mock_list_plans, auth_client):
+    mock_list_plans.return_value = [
+        InternetPlanListItem(plan_id=3, name="PCQ_Plan", type="PCQ")
+    ]
+
+    response = await auth_client.get("/api/internet-plans/3")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["plan_id"] == 3
+    assert data["type"] == "PCQ"
+    assert "note" in data
+
+
+# ---------------------------------------------------------------------------
+# Unauthenticated (403)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_internet_plan_endpoints_require_api_key(async_client):
+    """All internet-plan endpoints must reject requests without X-API-Key."""
+    endpoints = [
+        ("GET", "/api/internet-plans/"),
+        ("GET", "/api/internet-plans/1"),
+    ]
+    for method, path in endpoints:
+        response = await async_client.request(method, path)
+        assert response.status_code in {401, 403}, f"{method} {path} should return 401 or 403"

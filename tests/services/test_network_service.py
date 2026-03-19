@@ -361,3 +361,63 @@ async def test_ping_error_mikrotik():
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
     assert status == ConnectionStatus.error
+
+
+# ---------------------------------------------------------------------------
+# PENDING status
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ping_pending():
+    """task.status=PENDING → ConnectionStatus.pending (tarea en cola, no terminada)."""
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json={"task": {"status": "PENDING", "result": None}})
+    )
+
+    gateway = _make_gateway()
+    status = await gateway._poll_ping("123-abc")
+    assert status == ConnectionStatus.pending
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ping_process_status_is_pending():
+    """task.status=PROCESS también es pending (tarea en progreso en WispHub)."""
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json={"task": {"status": "PROCESS", "result": None}})
+    )
+
+    gateway = _make_gateway()
+    status = await gateway._poll_ping("123-abc")
+    assert status == ConnectionStatus.pending
+
+
+# ---------------------------------------------------------------------------
+# Missing / malformed task key
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ping_missing_task_key_returns_error():
+    """Response without 'task' key → ConnectionStatus.error (response inesperada)."""
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json={"unexpected": "payload"})
+    )
+
+    gateway = _make_gateway()
+    status = await gateway._poll_ping("123-abc")
+    assert status == ConnectionStatus.error
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ping_http_error_returns_error():
+    """Non-200 HTTP response → ConnectionStatus.error."""
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(500, json={})
+    )
+
+    gateway = _make_gateway()
+    status = await gateway._poll_ping("123-abc")
+    assert status == ConnectionStatus.error

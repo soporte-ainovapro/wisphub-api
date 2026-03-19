@@ -5,7 +5,7 @@ Combina acceso HTTP a la API de WispHub con la lógica de negocio:
 validación de límite de zona y creación de tickets con prioridad y fechas.
 """
 
-from datetime import datetime
+from datetime import date as date_type, datetime
 from typing import Optional
 
 import httpx
@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.schemas.tickets import TicketCreate, TicketCreateRequest, TicketResponse
-from app.utils.dates import add_business_days
+from app.utils.dates import add_business_days, get_colombian_holidays
 from app.utils.ticket_rules import get_priority
 
 
@@ -31,7 +31,10 @@ class WispHubTicketService:
         priority = get_priority(ticket.subject) or 2
 
         start_date = datetime.now()
-        end_date = add_business_days(start_date, settings.MAX_TICKET_RESOLUTION_DAYS)
+        holidays = get_colombian_holidays(start_date.year) | frozenset(
+            date_type.fromisoformat(d) for d in settings.EXTRA_HOLIDAYS
+        )
+        end_date = add_business_days(start_date, settings.MAX_TICKET_RESOLUTION_DAYS, holidays)
 
         payload = {
             "servicio": ticket.service_id,

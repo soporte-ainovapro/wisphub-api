@@ -107,3 +107,38 @@ async def test_check_zone_blocked_false(mock_zone, auth_client):
 
     data = response.json()
     assert data["is_blocked"] is False
+
+
+# ---------------------------------------------------------------------------
+# Subjects
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_ticket_subjects_endpoint(auth_client):
+    response = await auth_client.get("/api/tickets/subjects")
+    assert response.status_code == 200
+    data = response.json()
+    assert "by_priority" in data
+    assert "all" in data
+    assert "low" in data["by_priority"]
+    assert "high" in data["by_priority"]
+    assert isinstance(data["all"], list)
+    assert len(data["all"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# Unauthenticated (403)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ticket_endpoints_require_api_key(async_client):
+    """All ticket endpoints must reject requests without X-API-Key."""
+    endpoints = [
+        ("POST", "/api/tickets"),
+        ("GET", "/api/tickets/subjects"),
+        ("GET", "/api/tickets/zone-blocked/1"),
+        ("GET", "/api/tickets/1"),
+    ]
+    for method, path in endpoints:
+        response = await async_client.request(method, path, json={})
+        assert response.status_code in {401, 403}, f"{method} {path} should return 401 or 403"

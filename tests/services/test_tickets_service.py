@@ -139,3 +139,45 @@ async def test_create_ticket_success():
     assert ticket is not None
     assert ticket.ticket_id == 999
     assert ticket.subject == "Internet Lento"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_ticket_returns_none_on_non_201():
+    """When WispHub returns a non-201 status, create_ticket returns None."""
+    respx.post(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(400, json={"detail": "error"})
+    )
+
+    gateway = _make_gateway()
+    new_ticket = TicketCreate(
+        service_id=100,
+        subject="No Tiene Internet",
+        description="Fallo general",
+        technician_id=5,
+    )
+    result = await gateway.create_ticket(new_ticket)
+    assert result is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_ticket_without_technician():
+    """technician_id=None should be filtered from the payload and not cause errors."""
+    mock_created = MOCK_WISPHUB_TICKET_DETAIL.copy()
+    mock_created["id_ticket"] = 111
+
+    respx.post(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(201, json=mock_created)
+    )
+
+    gateway = _make_gateway()
+    new_ticket = TicketCreate(
+        service_id=100,
+        subject="No Tiene Internet",
+        description="Sin técnico asignado",
+        technician_id=None,
+    )
+    ticket = await gateway.create_ticket(new_ticket)
+    assert ticket is not None
+    assert ticket.ticket_id == 111

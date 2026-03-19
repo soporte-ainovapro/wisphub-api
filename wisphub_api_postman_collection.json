@@ -1,502 +1,532 @@
 {
-    "info": {
-        "name": "WispHub API",
-        "description": "Endpoints for the WispHub local middleware API. All routes require an X-API-Key header.",
-        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  "info": {
+    "name": "WispHub API",
+    "description": "Endpoints for the WispHub local middleware API. All routes require an X-API-Key header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
     },
-    "variable": [
+    {
+      "key": "token",
+      "value": "test_internal_key_mock",
+      "type": "string",
+      "description": "Static X-API-Key token"
+    }
+  ],
+  "item": [
+    {
+      "name": "Clients (Clients)",
+      "description": "Search and list clients in the system",
+      "item": [
         {
-            "key": "base_url",
-            "value": "http://localhost:8000",
-            "type": "string"
+          "name": "List All Clients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clients/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                ""
+              ]
+            }
+          }
         },
         {
-            "key": "token",
-            "value": "test_internal_key_mock",
-            "type": "string",
-            "description": "Static X-API-Key token"
+          "name": "Client by Document",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clients/by-document/123456789",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "by-document",
+                "123456789"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Client by Phone",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clients/by-phone/55512345",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "by-phone",
+                "55512345"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Client by Service ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clients/by-service-id/100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "by-service-id",
+                "100"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Flexible Search (Name / Address)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clients/search?q=Juan Perez",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Juan Perez"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"document\": \"100100100\",\n    \"phone\": \"3000000000\",\n    \"address\": \"Calle Falsa 123\",\n    \"locality\": \"Chapinero\",\n    \"city\": \"Bogotá\",\n    \"balance\": \"-50000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clients/100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "100"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Identity (Billing Data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address\": \"Bellavista\",\n    \"internet_plan_name\": \"7MB PLUS\",\n    \"internet_plan_price\": 40000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clients/100/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "100",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resolve Client (Single-pass)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Juan Perez\",\n    \"address\": \"Bellavista\",\n    \"internet_plan_price\": 40000.0,\n    \"internet_plan_name\": \"7MB PLUS\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/clients/resolve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clients",
+                "resolve"
+              ]
+            }
+          }
         }
-    ],
-    "item": [
+      ]
+    },
+    {
+      "name": "Internet Plans",
+      "description": "Query available internet plans and their details",
+      "item": [
         {
-            "name": "Clients (Clients)",
-            "description": "Search and list clients in the system",
-            "item": [
-                {
-                    "name": "List All Clients",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                ""
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Client by Document",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/by-document/123456789",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "by-document",
-                                "123456789"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Client by Phone",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/by-phone/55512345",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "by-phone",
-                                "55512345"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Client by Service ID",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/by-service-id/100",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "by-service-id",
-                                "100"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Flexible Search (Name / Address)",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/search?q=Juan Perez",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "search"
-                            ],
-                            "query": [
-                                {
-                                    "key": "q",
-                                    "value": "Juan Perez"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Update Profile",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"document\": \"100100100\",\n    \"phone\": \"3000000000\",\n    \"address\": \"Calle Falsa 123\",\n    \"locality\": \"Chapinero\",\n    \"city\": \"Bogotá\",\n    \"balance\": \"-50000\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/100",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "100"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Verify Identity (Billing Data)",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"address\": \"Bellavista\",\n    \"internet_plan_name\": \"7MB PLUS\",\n    \"internet_plan_price\": 40000.0\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/100/verify",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "100",
-                                "verify"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Resolve Client (Single-pass)",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Juan Perez\",\n    \"address\": \"Bellavista\",\n    \"internet_plan_price\": 40000.0,\n    \"internet_plan_name\": \"7MB PLUS\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/clients/resolve",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "clients",
-                                "resolve"
-                            ]
-                        }
-                    }
-                }
-            ]
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/internet-plans/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "internet-plans",
+                ""
+              ]
+            }
+          }
         },
         {
-            "name": "Internet Plans",
-            "description": "Query available internet plans and their details",
-            "item": [
-                {
-                    "name": "List Plans",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/internet-plans/",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "internet-plans",
-                                ""
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Plan Detail",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/internet-plans/10",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "internet-plans",
-                                "10"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Support (Tickets)",
-            "description": "Management of support and technical tickets",
-            "item": [
-                {
-                    "name": "Create Ticket",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"service_id\": 100,\n    \"subject\": \"Sin acceso a internet\",\n    \"technician_id\": 5,\n    \"description\": \"El cliente reporta luz roja en el router.\",\n    \"zone_id\": 1\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/tickets",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "tickets"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Ticket Subjects",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/tickets/subjects",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "tickets",
-                                "subjects"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Check Zone Blocked",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/tickets/zone-blocked/1",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "tickets",
-                                "zone-blocked",
-                                "1"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Ticket",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/tickets/500",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "tickets",
-                                "500"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Network & Diagnostics",
-            "description": "Diagnostic tools such as Pings",
-            "item": [
-                {
-                    "name": "Start Async Ping",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"pings\": 4\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        },
-                        "url": {
-                            "raw": "{{base_url}}/api/100/ping/",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "100",
-                                "ping",
-                                ""
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get PING Result by Task ID",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "X-API-Key",
-                                "value": "{{token}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{base_url}}/api/ping/123-abc/",
-                            "host": [
-                                "{{base_url}}"
-                            ],
-                            "path": [
-                                "api",
-                                "ping",
-                                "123-abc",
-                                ""
-                            ]
-                        }
-                    }
-                }
-            ]
+          "name": "Plan Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/internet-plans/10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "internet-plans",
+                "10"
+              ]
+            }
+          }
         }
-    ]
+      ]
+    },
+    {
+      "name": "Support (Tickets)",
+      "description": "Management of support and technical tickets",
+      "item": [
+        {
+          "name": "Create Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"service_id\": 100,\n    \"subject\": \"Sin acceso a internet\",\n    \"technician_id\": 5,\n    \"description\": \"El cliente reporta luz roja en el router.\",\n    \"zone_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ticket Subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tickets/subjects",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "tickets",
+                "subjects"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Zone Blocked",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tickets/zone-blocked/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "tickets",
+                "zone-blocked",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ticket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tickets/500",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "tickets",
+                "500"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Network & Diagnostics",
+      "description": "Diagnostic tools such as Pings",
+      "item": [
+        {
+          "name": "Start Async Ping",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"pings\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/100/ping/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "100",
+                "ping",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get PING Result by Task ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ping/123-abc/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ping",
+                "123-abc",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Methods",
+      "item": [
+        {
+          "name": "List Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/payment-methods/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "payment-methods",
+                ""
+              ]
+            },
+            "description": "Retrieves the list of payment methods available in WispHub. Response is cached for 15 minutes."
+          }
+        }
+      ]
+    }
+  ]
 }

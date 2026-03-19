@@ -19,7 +19,9 @@ from app.schemas.clients import (
     ClientResolveRequest,
     ClientVerifyRequest,
 )
-from app.schemas.internet_plans import InternetPlanListItem, InternetPlanResponse
+from app.services.providers.wisphub.wisphub_internet_plan_service import (
+    WispHubInternetPlanService,
+)
 
 # Mapeo de nombres de campo Python → nombres de campo WispHub
 FIELD_MAP: Dict[str, str] = {
@@ -80,9 +82,15 @@ def _parse_client(c: dict) -> ClientResponse:
 
 
 class WispHubClientService:
-    def __init__(self, base_url: str, api_key: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        internet_plan_service: WispHubInternetPlanService,
+    ) -> None:
         self.base_url = base_url
         self.headers = {"Authorization": f"Api-Key {api_key}"}
+        self.internet_plan_service = internet_plan_service
 
     # ------------------------------------------------------------------
     # HTTP helpers
@@ -167,49 +175,6 @@ class WispHubClientService:
                 return response.status_code in [200, 204]
             except httpx.RequestError:
                 return False
-
-    async def _list_internet_plans(
-        self,
-    ) -> Optional[List[InternetPlanListItem]]:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                f"{self.base_url}/api/plan-internet/",
-                headers=self.headers,
-            )
-        if response.status_code != 200:
-            return None
-        data = response.json()
-        results = data.get("results")
-        if not isinstance(results, list):
-            return None
-        return [
-            InternetPlanListItem(
-                plan_id=p.get("id"),
-                name=p.get("nombre"),
-                type=p.get("tipo"),
-            )
-            for p in results
-        ]
-
-    async def _get_plan_detail(
-        self, endpoint: str, plan_id: int
-    ) -> Optional[InternetPlanResponse]:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                f"{self.base_url}{endpoint}{plan_id}/",
-                headers=self.headers,
-            )
-        if response.status_code != 200:
-            return None
-        plan = response.json()
-        if not isinstance(plan, dict) or not plan:
-            return None
-        return InternetPlanResponse(
-            name=plan.get("nombre"),
-            price=plan.get("precio"),
-            download_speed=plan.get("bajada"),
-            upload_speed=plan.get("subida"),
-        )
 
     # ------------------------------------------------------------------
     # Business logic
@@ -323,7 +288,7 @@ class WispHubClientService:
             and client.internet_plan_name
             and request.internet_plan_price is not None
         ):
-            plans = await self._list_internet_plans()
+            plans = await self.internet_plan_service.list_internet_plans()
             if plans:
                 matched_plan = next(
                     (
@@ -336,13 +301,9 @@ class WispHubClientService:
                 )
                 if matched_plan:
                     if matched_plan.type.upper() == "PPPOE":
-                        plan_detail = await self._get_plan_detail(
-                            "/api/plan-internet/pppoe/", matched_plan.plan_id
-                        )
+                        plan_detail = await self.internet_plan_service.get_pppoe_plan(matched_plan.plan_id)
                     else:
-                        plan_detail = await self._get_plan_detail(
-                            "/api/plan-internet/queue/", matched_plan.plan_id
-                        )
+                        plan_detail = await self.internet_plan_service.get_queue_plan(matched_plan.plan_id)
                     if plan_detail:
                         internet_plan_price = plan_detail.price
 

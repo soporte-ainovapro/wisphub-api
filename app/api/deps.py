@@ -15,6 +15,7 @@ from app.services.interfaces import (
     ClientService,
     InternetPlanService,
     NetworkService,
+    PaymentMethodService,
     TicketService,
 )
 
@@ -45,13 +46,18 @@ def _build_services() -> tuple:
         from app.services.providers.wisphub.wisphub_ticket_service import (
             WispHubTicketService,
         )
+        from app.services.providers.wisphub.wisphub_payment_method_service import (
+            WispHubPaymentMethodService,
+        )
 
         kwargs = {"base_url": settings.WISPHUB_NET_HOST, "api_key": settings.WISPHUB_NET_KEY}
+        internet_plan_svc = WispHubInternetPlanService(**kwargs)
         return (
-            WispHubClientService(**kwargs),
+            WispHubClientService(**kwargs, internet_plan_service=internet_plan_svc),
             WispHubTicketService(**kwargs),
-            WispHubInternetPlanService(**kwargs),
+            internet_plan_svc,
             WispHubNetworkService(**kwargs),
+            WispHubPaymentMethodService(**kwargs),
         )
 
     raise ValueError(
@@ -60,7 +66,7 @@ def _build_services() -> tuple:
     )
 
 
-_client_service, _ticket_service, _internet_plan_service, _network_service = _build_services()
+_client_service, _ticket_service, _internet_plan_service, _network_service, _payment_method_service = _build_services()
 
 
 def get_client_service() -> ClientService:
@@ -77,3 +83,7 @@ def get_internet_plan_service() -> InternetPlanService:
 
 def get_network_service() -> NetworkService:
     return _network_service
+
+
+def get_payment_method_service() -> PaymentMethodService:
+    return _payment_method_service

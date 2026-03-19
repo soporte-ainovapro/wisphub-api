@@ -295,3 +295,67 @@ async def test_resolve_client_identity_not_enough_fields(auth_client):
     assert response.status_code == 400
     data = response.json()
     assert "Se requieren al menos 3 campos" in data["detail"]
+
+
+# ---------------------------------------------------------------------------
+# by-phone
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.get_client_by_phone", new_callable=AsyncMock)
+async def test_get_client_by_phone_endpoint_found(mock_get, auth_client):
+    mock_get.return_value = MOCK_API_CLIENT
+    response = await auth_client.get("/api/clients/by-phone/333")
+    assert response.status_code == 200
+    assert response.json()["phone"] == "333"
+
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.get_client_by_phone", new_callable=AsyncMock)
+async def test_get_client_by_phone_endpoint_not_found(mock_get, auth_client):
+    mock_get.return_value = None
+    response = await auth_client.get("/api/clients/by-phone/000")
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# by-service-id
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
+async def test_get_client_by_service_id_endpoint_found(mock_get, auth_client):
+    mock_get.return_value = MOCK_API_CLIENT
+    response = await auth_client.get("/api/clients/by-service-id/1")
+    assert response.status_code == 200
+    assert response.json()["service_id"] == 1
+
+
+@pytest.mark.asyncio
+@patch(f"{GATEWAY}.get_client_by_service_id", new_callable=AsyncMock)
+async def test_get_client_by_service_id_endpoint_not_found(mock_get, auth_client):
+    mock_get.return_value = None
+    response = await auth_client.get("/api/clients/by-service-id/9999")
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Unauthenticated (403)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_client_endpoints_require_api_key(async_client):
+    """All client endpoints must reject requests without X-API-Key."""
+    endpoints = [
+        ("GET", "/api/clients/"),
+        ("GET", "/api/clients/by-document/111"),
+        ("GET", "/api/clients/by-phone/111"),
+        ("GET", "/api/clients/by-service-id/1"),
+        ("GET", "/api/clients/search?q=test"),
+        ("POST", "/api/clients/resolve"),
+        ("PUT", "/api/clients/1"),
+        ("POST", "/api/clients/1/verify"),
+    ]
+    for method, path in endpoints:
+        response = await async_client.request(method, path, json={})
+        assert response.status_code in {401, 403}, f"{method} {path} should return 401 or 403"
