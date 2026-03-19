@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -6,7 +8,23 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.exception_handlers import validation_exception_handler, http_exception_handler, general_exception_handler
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Pre-calienta la caché de clientes en background al arrancar."""
+    async def _warm_up():
+        try:
+            from app.api.deps import get_client_service
+            await get_client_service().get_all()
+        except Exception:
+            pass  # best-effort: no bloquea ni falla el arranque
+
+    asyncio.create_task(_warm_up())
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="WispHub API",
     description="API de integración local con WispHub.",
     version="2.0.0",

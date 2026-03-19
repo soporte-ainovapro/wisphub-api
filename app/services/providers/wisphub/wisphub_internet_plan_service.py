@@ -49,9 +49,11 @@ class WispHubInternetPlanService:
             for p in results
         ]
 
+    @alru_cache(ttl=900)
     async def get_pppoe_plan(self, plan_id: int) -> Optional[InternetPlanResponse]:
         return await self._get_plan_detail("/api/plan-internet/pppoe/", plan_id)
 
+    @alru_cache(ttl=900)
     async def get_queue_plan(self, plan_id: int) -> Optional[InternetPlanResponse]:
         return await self._get_plan_detail("/api/plan-internet/queue/", plan_id)
 

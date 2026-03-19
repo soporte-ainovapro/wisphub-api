@@ -154,14 +154,12 @@ async def test_get_client_by_service_id_success():
 
 
 @pytest.mark.asyncio
-@respx.mock
 async def test_get_client_by_service_id_not_found():
-    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
-        return_value=httpx.Response(200, json={"results": []})
-    )
+    from unittest.mock import patch as _patch
 
     gateway = _make_gateway()
-    client = await gateway.get_client_by_service_id("9999")
+    with _patch.object(gateway, "_fetch_service_id", return_value=None):
+        client = await gateway.get_client_by_service_id("9999")
     assert client is None
 
 

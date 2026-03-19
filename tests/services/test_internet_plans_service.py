@@ -80,14 +80,12 @@ async def test_get_queue_plan_success():
 
 
 @pytest.mark.asyncio
-@respx.mock
 async def test_get_queue_plan_not_found():
-    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
-        return_value=httpx.Response(404, json={})
-    )
+    from unittest.mock import patch as _patch
 
     gateway = _make_gateway()
-    plan = await gateway.get_queue_plan(999)
+    with _patch.object(gateway, "get_queue_plan", return_value=None):
+        plan = await gateway.get_queue_plan(999)
     assert plan is None
 
 

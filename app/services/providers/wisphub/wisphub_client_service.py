@@ -93,6 +93,8 @@ class WispHubClientService:
         self.base_url = base_url
         self.headers = {"Authorization": f"Api-Key {api_key}"}
         self.internet_plan_service = internet_plan_service
+        # Instantaneous lookups once get_clients() has been called at least once
+        self._clients_snapshot: Optional[List[ClientResponse]] = None
 
     # ------------------------------------------------------------------
     # HTTP helpers
@@ -134,15 +136,25 @@ class WispHubClientService:
         ]
 
     async def get_client_by_document(self, document: str) -> Optional[ClientResponse]:
+        if self._clients_snapshot is not None:
+            return next((c for c in self._clients_snapshot if c.document == document), None)
         return await self.fetch_client({"cedula": document})
 
     async def get_client_by_phone(self, phone: str) -> Optional[ClientResponse]:
-        return await self.fetch_client({"telefono": phone.replace("+", "").strip()})
+        normalized = phone.replace("+", "").strip()
+        if self._clients_snapshot is not None:
+            return next((c for c in self._clients_snapshot if c.phone == normalized), None)
+        return await self.fetch_client({"telefono": normalized})
+
+    @alru_cache(ttl=120)
+    async def _fetch_service_id(self, service_id: str) -> Optional[ClientResponse]:
+        """Resultado cacheado 2 min por service_id."""
+        return await self.fetch_client({"id_servicio": service_id})
 
     async def get_client_by_service_id(
         self, service_id: str
     ) -> Optional[ClientResponse]:
-        return await self.fetch_client({"id_servicio": service_id})
+        return await self._fetch_service_id(service_id)
 
     @alru_cache(maxsize=1, ttl=300)
     async def get_clients(self) -> List[ClientResponse]:
@@ -175,6 +187,7 @@ class WispHubClientService:
             page_size: int = len(results1)
 
             if page_size == 0 or total_count <= page_size:
+                self._clients_snapshot = all_results
                 return all_results
 
             # --- Páginas restantes en paralelo ---
@@ -201,6 +214,7 @@ class WispHubClientService:
             for page_items in pages:
                 all_results.extend(page_items)
 
+        self._clients_snapshot = all_results
         return all_results
 
     async def update_client_profile(self, service_id: int, request_data: dict) -> bool:
