@@ -301,14 +301,14 @@ async def test_get_task_id_failed():
 @pytest.mark.asyncio
 @respx.mock
 async def test_ping_stable_firewall():
-    """IP privada=timeout + IP pública=host unreachable → equipo con firewall, conectado."""
+    """IP privada=timeout + IP pública=host unreachable → equipo inalcanzable, antena con conexión."""
     respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
         return_value=httpx.Response(200, json=MOCK_TASK_RESULT_STABLE_FIREWALL)
     )
 
     gateway = _make_gateway()
-    status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.stable
+    result = await gateway._poll_ping("123-abc")
+    assert result.status == ConnectionStatus.antenna_only
 
 
 @pytest.mark.asyncio
@@ -321,7 +321,7 @@ async def test_ping_stable_reply_ip():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.stable
+    assert status.status == ConnectionStatus.stable
 
 
 @pytest.mark.asyncio
@@ -334,7 +334,7 @@ async def test_ping_stable_reply_mac():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.stable
+    assert status.status == ConnectionStatus.stable
 
 
 @pytest.mark.asyncio
@@ -347,7 +347,7 @@ async def test_ping_no_internet():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.no_internet
+    assert status.status == ConnectionStatus.no_internet
 
 
 @pytest.mark.asyncio
@@ -360,7 +360,7 @@ async def test_ping_error_mikrotik():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.error
+    assert status.status == ConnectionStatus.error
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ async def test_ping_pending():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.pending
+    assert status.status == ConnectionStatus.pending
 
 
 @pytest.mark.asyncio
@@ -390,7 +390,7 @@ async def test_ping_process_status_is_pending():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.pending
+    assert status.status == ConnectionStatus.pending
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +407,7 @@ async def test_ping_missing_task_key_returns_error():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.error
+    assert status.status == ConnectionStatus.error
 
 
 @pytest.mark.asyncio
@@ -420,4 +420,4 @@ async def test_ping_http_error_returns_error():
 
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
-    assert status == ConnectionStatus.error
+    assert status.status == ConnectionStatus.error

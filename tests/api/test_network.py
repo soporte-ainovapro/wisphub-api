@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from app.schemas.connection_status import ConnectionStatus
+from app.schemas.connection_status import ConnectionStatus, PingResultResponse
 
 GATEWAY = "app.services.providers.wisphub.wisphub_network_service.WispHubNetworkService"
 
@@ -31,31 +31,31 @@ async def test_create_ping_endpoint_failed(mock_task_id, auth_client):
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}._poll_ping", new_callable=AsyncMock)
 async def test_get_ping_result_endpoint_stable(mock_ping, auth_client):
-    mock_ping.return_value = ConnectionStatus.stable
+    mock_ping.return_value = PingResultResponse(status=ConnectionStatus.stable, message="ok")
 
     response = await auth_client.get("/api/ping/123-abc/")
     assert response.status_code == 200
 
     data = response.json()
-    assert data["result"] == "stable"
+    assert data["status"] == "stable"
 
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}._poll_ping", new_callable=AsyncMock)
 async def test_get_ping_result_endpoint_no_internet(mock_ping, auth_client):
-    mock_ping.return_value = ConnectionStatus.no_internet
+    mock_ping.return_value = PingResultResponse(status=ConnectionStatus.no_internet, message="ok")
 
     response = await auth_client.get("/api/ping/123-abc/")
     assert response.status_code == 200
 
     data = response.json()
-    assert data["result"] == "no_internet"
+    assert data["status"] == "no_internet"
 
 
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}._poll_ping", new_callable=AsyncMock)
 async def test_get_ping_result_endpoint_error(mock_ping, auth_client):
-    mock_ping.return_value = ConnectionStatus.error
+    mock_ping.return_value = PingResultResponse(status=ConnectionStatus.error, message="Some error message")
 
     response = await auth_client.get("/api/ping/123-abc/")
     assert response.status_code == 400
@@ -71,12 +71,12 @@ async def test_get_ping_result_endpoint_error(mock_ping, auth_client):
 @pytest.mark.asyncio
 @patch(f"{GATEWAY}._poll_ping", new_callable=AsyncMock)
 async def test_get_ping_result_endpoint_pending(mock_ping, auth_client):
-    mock_ping.return_value = ConnectionStatus.pending
+    mock_ping.return_value = PingResultResponse(status=ConnectionStatus.pending, message="waiting")
 
     response = await auth_client.get("/api/ping/123-abc/")
     assert response.status_code == 200
     data = response.json()
-    assert data["result"] == "pending"
+    assert data["status"] == "pending"
 
 
 # ---------------------------------------------------------------------------

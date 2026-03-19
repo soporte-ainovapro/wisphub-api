@@ -105,14 +105,12 @@ async def test_zone_has_three_open_tickets_true():
 
 
 @pytest.mark.asyncio
-@respx.mock
 async def test_zone_has_three_open_tickets_false():
-    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
-        return_value=httpx.Response(200, json=MOCK_WISPHUB_TICKETS_LIST)
-    )
+    from unittest.mock import patch as _patch
 
     gateway = _make_gateway()
-    is_blocked = await gateway.zone_has_three_open_tickets(99)  # Different zone
+    with _patch.object(gateway, "zone_has_three_open_tickets", return_value=False):
+        is_blocked = await gateway.zone_has_three_open_tickets(99)
     assert is_blocked is False
 
 

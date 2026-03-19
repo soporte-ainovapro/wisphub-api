@@ -9,6 +9,7 @@ from datetime import date as date_type, datetime
 from typing import Optional
 
 import httpx
+from async_lru import alru_cache
 from fastapi import HTTPException
 
 from app.core.config import settings
@@ -101,6 +102,7 @@ class WispHubTicketService:
             answer_text=(answer.get("respuesta") if isinstance(answer, dict) else None),
         )
 
+    @alru_cache(ttl=60)
     async def zone_has_three_open_tickets(self, zone_id: int) -> bool:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(

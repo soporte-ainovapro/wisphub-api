@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from app.services.interfaces import NetworkService
 from app.api.deps import get_network_service
-from app.schemas.connection_status import ConnectionStatus
+from app.schemas.connection_status import ConnectionStatus, PingResultResponse
 from app.schemas.ping_request import PingRequest
 from app.api.deps import verify_api_key
 
@@ -32,7 +32,7 @@ async def create_ping(
     return {"task_id": task_id}
 
 
-@router.get("/api/ping/{task_id}/", response_model=Dict[str, Any])
+@router.get("/api/ping/{task_id}/", response_model=PingResultResponse)
 async def get_ping_result(
     task_id: str = Path(
         ..., description="ID de la tarea generada en la creación del Ping"
@@ -45,7 +45,7 @@ async def get_ping_result(
     """
     result = await service.get_ping_result(task_id)
 
-    if result == ConnectionStatus.error:
-        raise HTTPException(status_code=400, detail="Ping failed")
+    if result.status == ConnectionStatus.error:
+        raise HTTPException(status_code=400, detail=result.message)
 
-    return {"result": result.value}
+    return result

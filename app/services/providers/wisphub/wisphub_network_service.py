@@ -5,14 +5,29 @@ Combina acceso HTTP a la API de WispHub con la lógica de negocio:
 inicio de tarea de ping y evaluación del resultado por ratio de pérdida.
 """
 
+import ipaddress
 import logging
 from typing import Optional
 
 import httpx
 
-from app.schemas.connection_status import ConnectionStatus
+from app.schemas.connection_status import ConnectionStatus, PingResultResponse
 
 logger = logging.getLogger(__name__)
+
+
+def is_private_ip(ip_str: str) -> bool:
+    if ":" in ip_str and "." not in ip_str:
+        return True  # Es una dirección MAC
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_private:
+            return True
+        if isinstance(ip, ipaddress.IPv4Address) and str(ip).startswith("172."):
+            return True
+        return False
+    except ValueError:
+        return False
 
 
 class WispHubNetworkService:
@@ -43,7 +58,7 @@ class WispHubNetworkService:
         task_id = data.get("task_id")
         return task_id if task_id else None
 
-    async def _poll_ping(self, task_id: str) -> ConnectionStatus:
+    async def _poll_ping(self, task_id: str) -> PingResultResponse:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
                 f"{self.base_url}/api/tasks/{task_id}/",
@@ -54,13 +69,13 @@ class WispHubNetworkService:
             logger.warning(
                 "_poll_ping: HTTP %s for task_id=%s", response.status_code, task_id
             )
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="Ping API error.")
 
         try:
             data = response.json()
         except ValueError:
             logger.warning("_poll_ping: invalid JSON for task_id=%s", task_id)
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="Invalid JSON response.")
 
         task = data.get("task")
         if not task:
@@ -69,7 +84,7 @@ class WispHubNetworkService:
                 task_id,
                 data,
             )
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="Invalid task format.")
 
         status = task.get("status")
         logger.info(
@@ -80,17 +95,17 @@ class WispHubNetworkService:
         )
 
         if status in ("PENDING", "PROCESS"):
-            return ConnectionStatus.pending
+            return PingResultResponse(status=ConnectionStatus.pending, message="Ping task is still processing.")
 
         if status != "SUCCESS":
             logger.warning(
                 "_poll_ping: unexpected status=%s for task_id=%s", status, task_id
             )
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message=f"Unexpected task status: {status}.")
 
         results = task.get("result")
         if not isinstance(results, list) or not results:
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="No ping result data.")
 
         # Separar ping items válidos (dict) de errores de MikroTik (string)
         all_ping_items = [
@@ -111,24 +126,40 @@ class WispHubNetworkService:
 
         # Todos son errores de MikroTik (interfaz inexistente / router inalcanzable)
         if string_pings and not dict_pings:
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="MikroTik interface error.")
 
         # Sin ningún ping válido
         if not dict_pings:
-            return ConnectionStatus.error
+            return PingResultResponse(status=ConnectionStatus.error, message="No valid ping items found.")
 
-        # Reply real: received >= 1 → el equipo respondió el ICMP
-        if any(p.get("received", "0") != "0" for p in dict_pings):
-            return ConnectionStatus.stable
+        private_pings = [p for p in dict_pings if "host" in p and is_private_ip(p["host"])]
+        public_pings = [p for p in dict_pings if "host" in p and not is_private_ip(p["host"])]
 
-        statuses = [p.get("status") for p in dict_pings]
+        # Determine if private or public IPs answered
+        def has_active_response(pings_list):
+            for p in pings_list:
+                if p.get("received", "0") != "0":
+                    return True
+                if p.get("status") == "host unreachable":
+                    return True
+            return False
 
-        # Hay al menos un "host unreachable" (IP pública respondió) → firewall activo → conectado
-        if "host unreachable" in statuses:
-            return ConnectionStatus.stable
+        if has_active_response(private_pings):
+            return PingResultResponse(
+                status=ConnectionStatus.stable,
+                message="Client device has an active connection."
+            )
 
-        # Todos son "timeout" sin ningún host unreachable → equipo sin ruta / offline
-        return ConnectionStatus.no_internet
+        if has_active_response(public_pings):
+            return PingResultResponse(
+                status=ConnectionStatus.antenna_only,
+                message="Customer device is unreachable, but the main antenna has connection."
+            )
+
+        return PingResultResponse(
+            status=ConnectionStatus.no_internet,
+            message="No connection to the customer device or the antenna."
+        )
 
     # ------------------------------------------------------------------
     # Business logic
@@ -137,5 +168,5 @@ class WispHubNetworkService:
     async def start_ping(self, service_id: int, pings: int) -> Optional[str]:
         return await self._get_task_id(pings=pings, service_id=service_id)
 
-    async def get_ping_result(self, task_id: str) -> ConnectionStatus:
+    async def get_ping_result(self, task_id: str) -> PingResultResponse:
         return await self._poll_ping(task_id)

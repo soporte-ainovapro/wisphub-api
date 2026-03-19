@@ -13,7 +13,7 @@ from app.schemas.clients import (
     ClientResolveRequest,
     ClientVerifyRequest,
 )
-from app.schemas.connection_status import ConnectionStatus
+from app.schemas.connection_status import ConnectionStatus, PingResultResponse
 from app.schemas.internet_plans import InternetPlanListItem
 from app.schemas.tickets import TicketCreateRequest, TicketResponse
 
@@ -44,7 +44,7 @@ class InternetPlanService(Protocol):
 
 class NetworkService(Protocol):
     async def start_ping(self, service_id: int, pings: int) -> Optional[str]: ...
-    async def get_ping_result(self, task_id: str) -> ConnectionStatus: ...
+    async def get_ping_result(self, task_id: str) -> PingResultResponse: ...
 
 
 class PaymentMethodService(Protocol):
