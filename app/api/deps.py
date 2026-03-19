@@ -2,11 +2,12 @@
 Único punto de inyección de dependencias (Factory/DI).
 
 Los routers importan solo las funciones get_*_service() de este módulo.
-Las clases concretas se instancian aquí según el valor de settings.ISP_PROVIDER.
+Las clases concretas se instancian como singletons al arrancar la app para que
+los cachés internos (alru_cache) persistan entre requests.
 Añadir soporte para un nuevo proveedor ISP solo requiere cambios en este archivo.
 """
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
 from app.core.config import settings
@@ -29,15 +30,28 @@ async def verify_api_key(api_key: str = Security(api_key_header)) -> str:
     return api_key
 
 
-def get_client_service() -> ClientService:
+def _build_services() -> tuple:
+    """Instancia los servicios una sola vez al importar el módulo."""
     if settings.ISP_PROVIDER == "wisphub":
         from app.services.providers.wisphub.wisphub_client_service import (
             WispHubClientService,
         )
+        from app.services.providers.wisphub.wisphub_internet_plan_service import (
+            WispHubInternetPlanService,
+        )
+        from app.services.providers.wisphub.wisphub_network_service import (
+            WispHubNetworkService,
+        )
+        from app.services.providers.wisphub.wisphub_ticket_service import (
+            WispHubTicketService,
+        )
 
-        return WispHubClientService(
-            base_url=settings.WISPHUB_NET_HOST,
-            api_key=settings.WISPHUB_NET_KEY,
+        kwargs = {"base_url": settings.WISPHUB_NET_HOST, "api_key": settings.WISPHUB_NET_KEY}
+        return (
+            WispHubClientService(**kwargs),
+            WispHubTicketService(**kwargs),
+            WispHubInternetPlanService(**kwargs),
+            WispHubNetworkService(**kwargs),
         )
 
     raise ValueError(
@@ -46,43 +60,20 @@ def get_client_service() -> ClientService:
     )
 
 
+_client_service, _ticket_service, _internet_plan_service, _network_service = _build_services()
+
+
+def get_client_service() -> ClientService:
+    return _client_service
+
+
 def get_ticket_service() -> TicketService:
-    if settings.ISP_PROVIDER == "wisphub":
-        from app.services.providers.wisphub.wisphub_ticket_service import (
-            WispHubTicketService,
-        )
-
-        return WispHubTicketService(
-            base_url=settings.WISPHUB_NET_HOST,
-            api_key=settings.WISPHUB_NET_KEY,
-        )
-
-    raise ValueError(f"ISP_PROVIDER no soportado: '{settings.ISP_PROVIDER}'")
+    return _ticket_service
 
 
 def get_internet_plan_service() -> InternetPlanService:
-    if settings.ISP_PROVIDER == "wisphub":
-        from app.services.providers.wisphub.wisphub_internet_plan_service import (
-            WispHubInternetPlanService,
-        )
-
-        return WispHubInternetPlanService(
-            base_url=settings.WISPHUB_NET_HOST,
-            api_key=settings.WISPHUB_NET_KEY,
-        )
-
-    raise ValueError(f"ISP_PROVIDER no soportado: '{settings.ISP_PROVIDER}'")
+    return _internet_plan_service
 
 
 def get_network_service() -> NetworkService:
-    if settings.ISP_PROVIDER == "wisphub":
-        from app.services.providers.wisphub.wisphub_network_service import (
-            WispHubNetworkService,
-        )
-
-        return WispHubNetworkService(
-            base_url=settings.WISPHUB_NET_HOST,
-            api_key=settings.WISPHUB_NET_KEY,
-        )
-
-    raise ValueError(f"ISP_PROVIDER no soportado: '{settings.ISP_PROVIDER}'")
+    return _network_service
