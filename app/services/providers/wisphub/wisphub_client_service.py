@@ -369,11 +369,6 @@ class WispHubClientService:
         return {
             "is_valid": False,
             "matched_fields": matched_fields,
-            "debug": {
-                "client_address": client.address,
-                "client_plan_name": client.internet_plan_name,
-                "resolved_plan_price": internet_plan_price,
-            },
             "message": "Los datos proporcionados no coinciden con la información registrada.",
         }
 
