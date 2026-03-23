@@ -15,7 +15,8 @@ class ClientResponse(BaseModel):
     address: str | None
     city: str | None
     locality: str | None
-    payment_status: str | None
+    invoices_status: str | None
+    status: str | None
     zone_id: int | None
     antenna_ip: str | None
     cut_off_date: str | None
