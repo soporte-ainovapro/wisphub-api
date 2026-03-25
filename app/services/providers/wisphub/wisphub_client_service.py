@@ -295,13 +295,20 @@ class WispHubClientService:
                 detail="No se encontraron clientes con los datos proporcionados.",
             )
 
+        best_candidate = None
+        best_score = 0
         for candidate in candidates:
-            if _score(candidate) == fields_provided:
-                return candidate
+            score = _score(candidate)
+            if score >= 3 and score > best_score:
+                best_candidate = candidate
+                best_score = score
+
+        if best_candidate:
+            return best_candidate
 
         raise HTTPException(
             status_code=404,
-            detail="Ningún cliente coincide con todos los datos proporcionados.",
+            detail="Ningún cliente coincide con suficientes datos proporcionados.",
         )
 
     async def verify(
@@ -371,7 +378,7 @@ class WispHubClientService:
             if abs(request.internet_plan_price - internet_plan_price) < 1.0:
                 matched_fields.append("internet_plan_price")
 
-        is_valid = len(matched_fields) == request_fields_count
+        is_valid = len(matched_fields) >= 3
 
         if is_valid:
             return {
