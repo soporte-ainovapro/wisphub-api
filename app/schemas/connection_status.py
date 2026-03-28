@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class ConnectionStatus(str, Enum):
     no_internet = "no_internet"
     stable = "stable"
+    intermittent = "intermittent"
     antenna_only = "antenna_only"
     error = "error"
     pending = "pending"

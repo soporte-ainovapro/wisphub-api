@@ -254,10 +254,10 @@ Polls the result of a previously started ping task.
   }
   ```
   **Possible statuses:**
-  - `stable`: Connection healthy (CPE/Router responded).
-  - `antenna_only`: Customer device (CPE) is down/unreachable, but the main sector antenna (public IP) responded.
+  - `stable`: Connection healthy (≥ 75% packets received).
+  - `intermittent`: Connection is unstable (> 0% and < 75% packets received).
+  - `no_internet`: zero packets received. Includes a detailed breakdown of failure reasons.
   - `pending`: Task still running, poll again.
-  - `no_internet`: Zero packets received on all interfaces.
   - `error`: MikroTik/Router errors or invalid host setup.
 - **Pattern:** Poll every 2–3 seconds until `status` is not `"pending"`.
 
@@ -363,10 +363,10 @@ Collect ≥3 of: name, address, internet_plan_name, internet_plan_price
    → GET /api/network/ping/{task_id}/
    → loop while result.status == "pending"
 4. Interpret result:
-   - "stable"       → "your connection is working normally"
-   - "antenna_only" → "we can reach your nearest tower, but not your router. Please check the power."
-   - "no_internet"  → "we cannot reach your equipment or the tower."
-   - "error"        → "diagnostic failed, please call support"
+   - `stable` → "Your connection is working normally (X/Y packets received)."
+   - `intermittent` → "Your connection is intermittent (X/Y packets received). Please check your cables."
+   - `no_internet` → "No response from the device. Details: {timeout} packets lost and {unreachable} reported host unreachable."
+   - `error` → "Diagnostic failed, please call support."
 ```
 
 ---

@@ -135,30 +135,73 @@ class WispHubNetworkService:
         private_pings = [p for p in dict_pings if "host" in p and is_private_ip(p["host"])]
         public_pings = [p for p in dict_pings if "host" in p and not is_private_ip(p["host"])]
 
-        # Determine if private or public IPs answered
-        def has_active_response(pings_list):
+        def get_stats(pings_list):
+            total_sent = 0
+            total_received = 0
+            counts = {"timeout": 0, "host unreachable": 0}
             for p in pings_list:
-                if p.get("received", "0") != "0":
-                    return True
-                if p.get("status") == "host unreachable":
-                    return True
-            return False
+                sent = int(p.get("sent", "0"))
+                received = int(p.get("received", "0"))
+                total_sent += sent
+                total_received += received
+                if received == 0:
+                    st = p.get("status")
+                    if st in counts:
+                        counts[st] += 1
+            return total_sent, total_received, counts
 
-        if has_active_response(private_pings):
-            return PingResultResponse(
-                status=ConnectionStatus.stable,
-                message="Client device has an active connection."
-            )
+        sent_priv, recv_priv, counts_priv = get_stats(private_pings)
+        sent_pub, recv_pub, counts_pub = get_stats(public_pings)
 
-        if has_active_response(public_pings):
-            return PingResultResponse(
-                status=ConnectionStatus.antenna_only,
-                message="Customer device is unreachable, but the main antenna has connection."
-            )
+        # Prioridad 1: Evaluación de dispositivo del cliente (IPs privadas)
+        if sent_priv > 0:
+            ratio_priv = recv_priv / sent_priv
+            if ratio_priv >= 0.75:
+                return PingResultResponse(
+                    status=ConnectionStatus.stable,
+                    message="Client device has an active connection."
+                )
+            if ratio_priv > 0:
+                return PingResultResponse(
+                    status=ConnectionStatus.intermittent,
+                    message=f"Client connection is intermittent ({recv_priv}/{sent_priv} packets received)."
+                )
+
+        # Prioridad 2: Evaluación de antena (IPs públicas)
+        if sent_pub > 0:
+            ratio_pub = recv_pub / sent_pub
+            if ratio_pub >= 0.75:
+                return PingResultResponse(
+                    status=ConnectionStatus.stable,
+                    message="Antenna connection is stable."
+                )
+            if ratio_pub > 0:
+                return PingResultResponse(
+                    status=ConnectionStatus.intermittent,
+                    message=f"Antenna connection is intermittent ({recv_pub}/{sent_pub} packets received)."
+                )
+
+        # Caso final: No se recibió ningún paquete de respuesta (Option A)
+        total_sent = sent_priv + sent_pub
+        t_timeout = counts_priv["timeout"] + counts_pub["timeout"]
+        t_unreach = counts_priv["host unreachable"] + counts_pub["host unreachable"]
+
+        details = []
+        if t_timeout > 0:
+            details.append(f"{t_timeout} packets lost (timeout)")
+        if t_unreach > 0:
+            details.append(f"{t_unreach} reported host unreachable")
+
+        detail_str = " and ".join(details) if details else "no response"
+        summary = next((item.get("ping-exitoso") for item in results if "ping-exitoso" in item), "0 of 0")
+        summary = summary.replace(" de ", " of ")
 
         return PingResultResponse(
             status=ConnectionStatus.no_internet,
-            message="No connection to the customer device or the antenna."
+            message=(
+                f"No response from the device. Details: {detail_str}. "
+                f"(Summary: 0/{total_sent} received, WispHub: {summary})."
+            )
         )
 
     # ------------------------------------------------------------------

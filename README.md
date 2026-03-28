@@ -125,7 +125,10 @@ locust -f locustfile.py --host=http://localhost:8000
 
 ### Network & Diagnostics Module
 *   `POST /api/network/{service_id}/ping/`: Initiates an asynchronous ICMP PING diagnostic task against a client's equipment.
-*   `GET /api/network/ping/{task_id}/`: Retrieves the result of a previously initialized PING task, accurately distinguishing between Client CPE status (private IPs or Layer 2 MAC address) versus Sector Antenna status (public IPs).
+*   `GET /api/network/ping/{task_id}/`: Retrieves the result of a previously initialized PING task. It accurately distinguishes between:
+    *   **Stable:** ≥ 75% packets received.
+    *   **Intermittent:** > 0% and < 75% packets received.
+    *   **No Internet:** 0% packets received. Includes a detailed English breakdown of the failure (e.g., number of timeouts vs host unreachable responses).
 
 ### Payment Methods Module
 *   `GET /api/payment-methods/`: Lists available billing and payment channels configured in WispHub.

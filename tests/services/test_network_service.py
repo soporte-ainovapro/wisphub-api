@@ -267,6 +267,56 @@ MOCK_TASK_RESULT_ERROR_MIKROTIK = {
 }
 
 
+# B3) Cliente con conexión intermitente (25% recibido) en IP privada
+MOCK_TASK_RESULT_INTERMITTENT = {
+    "task": {
+        "status": "SUCCESS",
+        "result": [
+            {
+                "ping-1": {
+                    "received": "1",
+                    "host": "172.16.12.25",
+                    "sent": "1",
+                    "packet-loss": "0",
+                    "seq": "0",
+                }
+            },
+            {
+                "ping-2": {
+                    "received": "0",
+                    "host": "172.16.12.25",
+                    "sent": "1",
+                    "packet-loss": "100",
+                    "seq": "0",
+                    "status": "timeout",
+                }
+            },
+            {
+                "ping-3": {
+                    "received": "0",
+                    "host": "172.16.12.25",
+                    "sent": "1",
+                    "packet-loss": "100",
+                    "seq": "0",
+                    "status": "timeout",
+                }
+            },
+            {
+                "ping-4": {
+                    "received": "0",
+                    "host": "172.16.12.25",
+                    "sent": "1",
+                    "packet-loss": "100",
+                    "seq": "0",
+                    "status": "timeout",
+                }
+            },
+            {"ping-exitoso": "1 de 4"},
+        ],
+    }
+}
+
+
 def _make_gateway():
     return WispHubNetworkService(
         base_url=settings.WISPHUB_NET_HOST,
@@ -308,7 +358,9 @@ async def test_ping_stable_firewall():
 
     gateway = _make_gateway()
     result = await gateway._poll_ping("123-abc")
-    assert result.status == ConnectionStatus.antenna_only
+    assert result.status == ConnectionStatus.no_internet
+    assert "2 reported host unreachable" in result.message
+    assert "Summary: 0/4 received" in result.message
 
 
 @pytest.mark.asyncio
@@ -348,6 +400,22 @@ async def test_ping_no_internet():
     gateway = _make_gateway()
     status = await gateway._poll_ping("123-abc")
     assert status.status == ConnectionStatus.no_internet
+    assert "Details: 4 packets lost (timeout)" in status.message
+    assert "WispHub: 0 of 4" in status.message
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ping_intermittent():
+    """received=1 de 4 en IP privada → conexión intermitente."""
+    respx.get(url__startswith=settings.WISPHUB_NET_HOST).mock(
+        return_value=httpx.Response(200, json=MOCK_TASK_RESULT_INTERMITTENT)
+    )
+
+    gateway = _make_gateway()
+    status = await gateway._poll_ping("123-abc")
+    assert status.status == ConnectionStatus.intermittent
+    assert "1/4 packets received" in status.message
 
 
 @pytest.mark.asyncio
